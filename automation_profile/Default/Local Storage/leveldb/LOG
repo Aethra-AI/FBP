@@ -1,0 +1,18 @@
+2025/10/17-22:42:08.556 1104 Reusing MANIFEST C:\Users\eos\Desktop\Swiftly2\automation_profile\Default\Local Storage\leveldb/MANIFEST-000001
+2025/10/17-22:42:08.563 1104 Recovering log #49
+2025/10/17-22:42:08.567 1104 Reusing old log C:\Users\eos\Desktop\Swiftly2\automation_profile\Default\Local Storage\leveldb/000049.log 
+2025/10/17-22:43:08.589 2f60 Level-0 table #53: started
+2025/10/17-22:43:08.626 2f60 Level-0 table #53: 8686 bytes OK
+2025/10/17-22:43:08.651 2f60 Delete type=0 #49
+2025/10/17-22:50:09.895 2f60 Level-0 table #55: started
+2025/10/17-22:50:10.002 2f60 Level-0 table #55: 39776 bytes OK
+2025/10/17-22:50:10.028 2f60 Delete type=0 #52
+2025/10/17-22:50:10.028 2f60 Compacting 4@0 + 1@1 files
+2025/10/17-22:50:10.067 2f60 Generated table #56@0: 37 keys, 39371 bytes
+2025/10/17-22:50:10.067 2f60 Compacted 4@0 + 1@1 files => 39371 bytes
+2025/10/17-22:50:10.112 2f60 compacted to: files[ 0 1 0 0 0 0 0 ]
+2025/10/17-22:50:10.114 2f60 Delete type=2 #45
+2025/10/17-22:50:10.114 2f60 Delete type=2 #47
+2025/10/17-22:50:10.114 2f60 Delete type=2 #50
+2025/10/17-22:50:10.114 2f60 Delete type=2 #53
+2025/10/17-22:50:10.114 2f60 Delete type=2 #55

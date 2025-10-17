@@ -1,0 +1,30 @@
+[2104:11712:0916/035806.864:INFO:components\enterprise\browser\controller\chrome_browser_cloud_management_controller.cc:206] No machine level policy manager exists.
+[2104:6772:0916/035809.259:WARNING:net\disk_cache\blockfile\backend_impl.cc:1629] Messed up entry found.
+[2104:11044:0916/035821.203:ERROR:google_apis\gcm\engine\connection_factory_impl.cc:434] Failed to connect to MCS endpoint with error -105
+[2104:11044:0916/035822.156:ERROR:google_apis\gcm\engine\registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT
+[2104:11712:0916/035837.682:INFO:CONSOLE:56] "Refused to apply inline speculation rules because it violates the following Content Security Policy directive: "script-src *.facebook.com *.fbcdn.net *.facebook.net 127.0.0.1:* blob: 'self' 'inline-speculation-rules' 'nonce-Syq9vX3K' 'wasm-unsafe-eval' https://*.google-analytics.com *.google.com". Either the 'unsafe-inline' keyword, a hash ('sha256-c7KvABF/W0ci28L40sBcQ8k1uvoVZNzZK1NT5qU+pr0='), or a nonce ('nonce-...') is required to enable inline execution.
+", source: https://static.xx.fbcdn.net/rsrc.php/v4icvn4/yI/l/es_LA-j/l_Nw-j_QU7l.js (56)
+[2104:11712:0916/035840.455:INFO:CONSOLE:251] "
+%c¡Detente! font-family:helvetica; font-size:20px; font-size:50px; font-weight:bold; color:red; -webkit-text-stroke:1px black;", source: https://static.xx.fbcdn.net/rsrc.php/v4/yM/r/GsFLFguiAKy.js (251)
+[2104:11712:0916/035840.456:INFO:CONSOLE:251] "
+%cEsta función del navegador está pensada para desarrolladores. Si alguien te indicó que copiaras y pegaras algo aquí para habilitar una función de Facebook o para "hackear" la cuenta de alguien, se trata de un fraude. Si lo haces, esta persona podrá acceder a tu cuenta. font-family:helvetica; font-size:20px; ", source: https://static.xx.fbcdn.net/rsrc.php/v4/yM/r/GsFLFguiAKy.js (251)
+[2104:11712:0916/035840.456:INFO:CONSOLE:251] "
+%cConsulta https://www.facebook.com/selfxss para obtener más información. font-family:helvetica; font-size:20px; ", source: https://static.xx.fbcdn.net/rsrc.php/v4/yM/r/GsFLFguiAKy.js (251)
+[2104:11712:0916/035840.456:INFO:CONSOLE:251] "
+%c ", source: https://static.xx.fbcdn.net/rsrc.php/v4/yM/r/GsFLFguiAKy.js (251)
+[2104:11044:0916/035853.351:ERROR:google_apis\gcm\engine\registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT
+[2104:11044:0916/035938.655:ERROR:google_apis\gcm\engine\registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT
+[2104:11044:0916/040140.995:ERROR:google_apis\gcm\engine\registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT
+[2104:11712:0916/040212.353:INFO:CONSOLE:56] "Refused to apply inline speculation rules because it violates the following Content Security Policy directive: "script-src *.facebook.com *.fbcdn.net *.facebook.net 127.0.0.1:* blob: 'self' 'inline-speculation-rules' 'nonce-d8vG7EFb' 'wasm-unsafe-eval' https://*.google-analytics.com *.google.com". Either the 'unsafe-inline' keyword, a hash ('sha256-c7KvABF/W0ci28L40sBcQ8k1uvoVZNzZK1NT5qU+pr0='), or a nonce ('nonce-...') is required to enable inline execution.
+", source: https://static.xx.fbcdn.net/rsrc.php/v4i9pu4/yK/l/es_LA-j/l_Nw-j_QU7l4Xk9CsOvpSFI0dmfxZjugtUu4UvVzkB2M9p1niMqzWJC37hzwoOjYgSbMQe0FxZ1osfU89RvNfLB3e9yhPQ8fwbicuJoZMaC7avAW1OGW-ZdcR8O4a3-RZkwNEjQ_zWN9BFC-2bAJtuulgYb-Kw8ASGzp6DfYl7aaL3NddXWUI9fSWfXPz4u0L4hQXInIw7WNGFAPTWpwiMMoblIIt3_nhZ60Z71.js (56)
+[2104:11712:0916/040213.804:INFO:CONSOLE:251] "
+%c¡Detente! font-family:helvetica; font-size:20px; font-size:50px; font-weight:bold; color:red; -webkit-text-stroke:1px black;", source: https://static.xx.fbcdn.net/rsrc.php/v4/yM/r/GsFLFguiAKy.js (251)
+[2104:11712:0916/040213.804:INFO:CONSOLE:251] "
+%cEsta función del navegador está pensada para desarrolladores. Si alguien te indicó que copiaras y pegaras algo aquí para habilitar una función de Facebook o para "hackear" la cuenta de alguien, se trata de un fraude. Si lo haces, esta persona podrá acceder a tu cuenta. font-family:helvetica; font-size:20px; ", source: https://static.xx.fbcdn.net/rsrc.php/v4/yM/r/GsFLFguiAKy.js (251)
+[2104:11712:0916/040213.804:INFO:CONSOLE:251] "
+%cConsulta https://www.facebook.com/selfxss para obtener más información. font-family:helvetica; font-size:20px; ", source: https://static.xx.fbcdn.net/rsrc.php/v4/yM/r/GsFLFguiAKy.js (251)
+[2104:11712:0916/040213.804:INFO:CONSOLE:251] "
+%c ", source: https://static.xx.fbcdn.net/rsrc.php/v4/yM/r/GsFLFguiAKy.js (251)
+[2104:11712:0916/040328.889:INFO:CONSOLE:0] "ResizeObserver loop completed with undelivered notifications.", source: https://www.facebook.com/groups/358440125209087 (0)
+[2104:11712:0916/040333.619:INFO:CONSOLE:0] "ResizeObserver loop completed with undelivered notifications.", source: https://www.facebook.com/groups/358440125209087 (0)
+[2104:11712:0916/040337.760:INFO:CONSOLE:0] "ResizeObserver loop completed with undelivered notifications.", source: https://www.facebook.com/groups/358440125209087 (0)

@@ -1,0 +1,1115 @@
+// Estado global de la aplicación
+let appState = {
+    data: {
+        texts: [],
+        images: [],
+        groups: [],
+        pages: [],
+        scheduled_posts: []
+    },
+    ui: {
+        currentTab: 'dashboard',
+        isGroupPublishing: false
+    }
+};
+
+// Utilidades
+const Utils = {
+    // Mostrar/ocultar loading
+    showLoading(show = true) {
+        const overlay = document.getElementById('loading-overlay');
+        if (show) {
+            overlay.classList.add('show');
+        } else {
+            overlay.classList.remove('show');
+        }
+    },
+
+    // Mostrar notificaciones
+    showNotification(title, message, type = 'success') {
+        const notification = document.getElementById('notification');
+        const titleEl = notification.querySelector('.notification-title');
+        const messageEl = notification.querySelector('.notification-content div:last-child');
+        const iconEl = notification.querySelector('.notification-icon i');
+
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        
+        // Cambiar icono según el tipo
+        switch(type) {
+            case 'success':
+                iconEl.className = 'fas fa-check';
+                break;
+            case 'error':
+                iconEl.className = 'fas fa-exclamation-triangle';
+                break;
+            case 'warning':
+                iconEl.className = 'fas fa-exclamation-circle';
+                break;
+            default:
+                iconEl.className = 'fas fa-info';
+        }
+
+        notification.className = `notification ${type}`;
+        notification.classList.add('show');
+
+        // Auto-ocultar después de 5 segundos
+        setTimeout(() => {
+            notification.classList.remove('show');
+        }, 5000);
+    },
+
+    // Formatear fecha
+    formatDateTime(dateString) {
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        return date.toLocaleString('es-ES');
+    },
+
+    // Truncar texto
+    truncateText(text, maxLength = 100) {
+        if (!text) return '';
+        return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+    },
+
+    // Validar URL
+    isValidUrl(string) {
+        try {
+            new URL(string);
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+};
+
+// Manejo de datos
+const DataManager = {
+    // Cargar datos iniciales
+    async loadInitialData() {
+        try {
+            Utils.showLoading(true);
+            const data = await eel.get_initial_data()();
+            appState.data = data;
+            this.updateUI();
+            this.updateStatus(true);
+            Utils.showNotification('Sistema Iniciado', 'Datos cargados correctamente', 'success');
+        } catch (error) {
+            console.error('Error cargando datos:', error);
+            Utils.showNotification('Error', 'No se pudieron cargar los datos iniciales', 'error');
+            this.updateStatus(false);
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    // Actualizar interfaz con los datos
+    updateUI() {
+        this.updateStats();
+        this.updateTextsTable();
+        this.updateImagesTable();
+        this.updateGroupsTable();
+        this.updatePagesTable();
+        this.updateScheduledPostsTable();
+        this.updateSelects();
+        this.updateHistoryTable();
+    },
+
+    // Actualizar estadísticas del dashboard
+    updateStats() {
+        document.getElementById('total-texts').textContent = appState.data.texts?.length || 0;
+        document.getElementById('total-images').textContent = appState.data.images?.length || 0;
+        document.getElementById('total-groups').textContent = appState.data.groups?.length || 0;
+        document.getElementById('total-scheduled').textContent = appState.data.scheduled_posts?.length || 0;
+
+        // Actualizar contadores en las pestañas
+        document.getElementById('texts-count').textContent = `${appState.data.texts?.length || 0} textos`;
+        document.getElementById('images-count').textContent = `${appState.data.images?.length || 0} imágenes`;
+        document.getElementById('groups-count').textContent = `${appState.data.groups?.length || 0} grupos`;
+        document.getElementById('pages-count').textContent = `${appState.data.pages?.length || 0} páginas`;
+        document.getElementById('scheduled-count').textContent = `${appState.data.scheduled_posts?.length || 0} programadas`;
+    },
+
+
+        // Actualizar tabla de textos
+    updateTextsTable() {
+        const tbody = document.getElementById('texts-table-body');
+        if (!appState.data.texts || appState.data.texts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No hay textos disponibles</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = appState.data.texts.map(text => {
+            const usageCount = text.usage_count || 0;
+            let usageClass = '';
+            if (usageCount >= 7 && usageCount < 10) {
+                usageClass = 'tag-warning';
+            } else if (usageCount >= 10) {
+                usageClass = 'tag-danger';
+            }
+            
+            // Escapar el contenido para que no rompa el HTML en el onclick
+            const escapedContent = text.content.replace(/`/g, '\\`').replace(/\$/g, '\\$');
+
+            return `
+                <tr>
+                    <td>${text.id}</td>
+                    <td style="max-width: 300px; word-wrap: break-word;">${Utils.truncateText(text.content)}</td>
+                    <td>
+                        ${(text.ai_tags || '').split(',').filter(tag => tag.trim()).map(tag => 
+                            `<span class="tag">${tag.trim()}</span>`
+                        ).join('')}
+                    </td>
+                    <td>
+                        <span class="tag ${usageClass}">${usageCount}</span>
+                    </td>
+                    <td class="actions">
+                        <button class="btn btn-sm btn-icon btn-secondary" onclick="UIManager.showTextEditModal(${text.id}, \`${escapedContent}\`)">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-icon btn-danger" onclick="DataManager.deleteText(${text.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    },
+
+            
+        
+    updateImagesTable() {
+        const tbody = document.getElementById('images-table-body');
+        if (!appState.data.images || appState.data.images.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No hay imágenes disponibles</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = appState.data.images.map(image => {
+            const usageCount = image.usage_count || 0;
+            let usageClass = '';
+            if (usageCount >= 7 && usageCount < 10) {
+                usageClass = 'tag-warning';
+            } else if (usageCount >= 10) {
+                usageClass = 'tag-danger';
+            }
+
+            return `
+                <tr>
+                    <td>${image.id}</td>
+                    <td>
+                        <img 
+                            src="file:///${image.path}" 
+                            class="image-preview" 
+                            style="cursor: pointer;"
+                            onclick="UIManager.showImageModal('${image.path.replace(/\\/g, '\\\\')}')"
+                            onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2250%22 height=%2250%22><rect width=%22100%25%22 height=%22100%25%22 fill=%22%23ccc%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22>IMG</text></svg>'">
+                    </td>
+                    <td style="max-width: 250px; word-wrap: break-word;">${Utils.truncateText(image.path)}</td>
+                    <td>
+                        ${(image.manual_tags || '').split(',').filter(tag => tag.trim()).map(tag => 
+                            `<span class="tag">${tag.trim()}</span>`
+                        ).join('')}
+                    </td>
+                    <td>
+                        <span class="tag ${usageClass}">${usageCount}</span>
+                    </td>
+                    <td class="actions">
+                        <button class="btn btn-sm btn-icon btn-danger" onclick="DataManager.deleteImage(${image.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    },
+
+    // Actualizar tabla de grupos
+    updateGroupsTable() {
+        const tbody = document.getElementById('groups-table-body');
+        if (!appState.data.groups || appState.data.groups.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No hay grupos disponibles</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = appState.data.groups.map(group => `
+            <tr>
+                <td>${group.id}</td>
+                <td style="max-width: 300px; word-wrap: break-word;">
+                    <a href="${group.url}" target="_blank" style="color: var(--primary);">${Utils.truncateText(group.url)}</a>
+                </td>
+                <td>
+                    ${(group.tags || '').split(',').filter(tag => tag.trim()).map(tag => 
+                        `<span class="tag">${tag.trim()}</span>`
+                    ).join('')}
+                </td>
+                <td class="actions">
+                    <button class="btn btn-sm btn-icon btn-danger" onclick="DataManager.deleteGroup(${group.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    },
+
+    // Actualizar tabla de páginas
+    updatePagesTable() {
+        const tbody = document.getElementById('pages-table-body');
+        if (!appState.data.pages || appState.data.pages.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No hay páginas disponibles</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = appState.data.pages.map(page => `
+            <tr>
+                <td>${page.id}</td>
+                <td>${page.name}</td>
+                <td style="max-width: 300px; word-wrap: break-word;">
+                    <a href="${page.page_url}" target="_blank" style="color: var(--primary);">${Utils.truncateText(page.page_url)}</a>
+                </td>
+                <td class="actions">
+                    <button class="btn btn-sm btn-icon btn-danger" onclick="DataManager.deletePage(${page.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    },
+
+    // Actualizar tabla de publicaciones programadas
+    updateScheduledPostsTable() {
+        const tbody = document.getElementById('scheduled-posts-table-body');
+        if (!appState.data.scheduled_posts || appState.data.scheduled_posts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No hay publicaciones programadas</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = appState.data.scheduled_posts.map(post => {
+            let statusClass = 'tag-warning';
+            if (post.status === 'completed') statusClass = 'tag-success';
+            else if (post.status === 'failed') statusClass = 'tag-danger';
+            
+            return `
+                <tr>
+                    <td>${post.id}</td>
+                    <td>${post.page_name || 'N/A'}</td>
+                    <td style="max-width: 250px; word-wrap: break-word;">${Utils.truncateText(post.text_content)}</td>
+                    <td>
+                        ${post.image_path ? 
+                            `<img src="file:///${post.image_path}" class="image-preview" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2250%22 height=%2250%22><rect width=%22100%25%22 height=%22100%25%22 fill=%22%23ccc%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22>IMG</text></svg>'">` : 
+                            'Sin imagen'
+                        }
+                    </td>
+                    <td>${Utils.formatDateTime(post.publish_at)}</td>
+                    <td><span class="tag ${statusClass}">${post.status}</span></td>
+                    <td class="actions">
+                        <button class="btn btn-sm btn-icon btn-danger" onclick="DataManager.deleteScheduledPost(${post.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    },
+
+    // Actualizar selects
+    updateSelects() {
+        // Select de páginas para el programador
+        const pageSelect = document.getElementById('schedule-page-select');
+        pageSelect.innerHTML = '<option value="">Selecciona una página...</option>';
+        if (appState.data.pages) {
+            appState.data.pages.forEach(page => {
+                pageSelect.innerHTML += `<option value="${page.id}">${page.name}</option>`;
+            });
+        }
+
+        // Select de imágenes para el programador
+        const imageSelect = document.getElementById('schedule-image-select');
+        imageSelect.innerHTML = '<option value="">Sin imagen</option>';
+        if (appState.data.images) {
+            appState.data.images.forEach(image => {
+                const filename = image.path.split('\\').pop().split('/').pop();
+                imageSelect.innerHTML += `<option value="${image.id}">${filename}</option>`;
+            });
+        }
+    },
+
+    // Actualizar estado de conexión
+    updateStatus(connected) {
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        
+        if (connected) {
+            statusDot.className = 'status-dot active';
+            statusText.textContent = 'Conectado';
+        } else {
+            statusDot.className = 'status-dot inactive';
+            statusText.textContent = 'Desconectado';
+        }
+    },
+
+    // Métodos para eliminar elementos
+    async deleteText(id) {
+        if (!confirm('¿Estás seguro de que deseas eliminar este texto?')) return;
+        
+        try {
+            Utils.showLoading(true);
+            const updatedTexts = await eel.delete_text(id)();
+            appState.data.texts = updatedTexts;
+            this.updateTextsTable();
+            this.updateStats();
+            Utils.showNotification('Texto eliminado', 'El texto se eliminó correctamente', 'success');
+        } catch (error) {
+            console.error('Error eliminando texto:', error);
+            Utils.showNotification('Error', 'No se pudo eliminar el texto', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    async deleteImage(id) {
+        if (!confirm('¿Estás seguro de que deseas eliminar esta imagen?')) return;
+        
+        try {
+            Utils.showLoading(true);
+            const updatedImages = await eel.delete_image(id)();
+            appState.data.images = updatedImages;
+            this.updateImagesTable();
+            this.updateStats();
+            this.updateSelects();
+            Utils.showNotification('Imagen eliminada', 'La imagen se eliminó correctamente', 'success');
+        } catch (error) {
+            console.error('Error eliminando imagen:', error);
+            Utils.showNotification('Error', 'No se pudo eliminar la imagen', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    async deleteGroup(id) {
+        if (!confirm('¿Estás seguro de que deseas eliminar este grupo?')) return;
+        
+        try {
+            Utils.showLoading(true);
+            const updatedGroups = await eel.delete_group(id)();
+            appState.data.groups = updatedGroups;
+            this.updateGroupsTable();
+            this.updateStats();
+            Utils.showNotification('Grupo eliminado', 'El grupo se eliminó correctamente', 'success');
+        } catch (error) {
+            console.error('Error eliminando grupo:', error);
+            Utils.showNotification('Error', 'No se pudo eliminar el grupo', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    async deletePage(id) {
+        if (!confirm('¿Estás seguro de que deseas eliminar esta página?')) return;
+        
+        try {
+            Utils.showLoading(true);
+            const updatedPages = await eel.delete_page(id)();
+            appState.data.pages = updatedPages;
+            this.updatePagesTable();
+            this.updateStats();
+            this.updateSelects();
+            Utils.showNotification('Página eliminada', 'La página se eliminó correctamente', 'success');
+        } catch (error) {
+            console.error('Error eliminando página:', error);
+            Utils.showNotification('Error', 'No se pudo eliminar la página', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    async deleteScheduledPost(id) {
+        if (!confirm('¿Estás seguro de que deseas eliminar esta publicación programada?')) return;
+        
+        try {
+            Utils.showLoading(true);
+            const updatedScheduled = await eel.delete_scheduled_post(id)();
+            appState.data.scheduled_posts = updatedScheduled;
+            this.updateScheduledPostsTable();
+            this.updateStats();
+            Utils.showNotification('Publicación cancelada', 'La publicación programada se eliminó correctamente', 'success');
+        } catch (error) {
+            console.error('Error eliminando publicación programada:', error);
+            Utils.showNotification('Error', 'No se pudo eliminar la publicación programada', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+    updateHistoryTable() {
+        const tbody = document.getElementById('history-table-body');
+        const logs = appState.data.publication_log;
+
+        if (!logs || logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No hay actividades recientes en el historial.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = logs.map(log => {
+            const statusClass = log.status === 'Success' ? 'tag-success' : 'tag-danger';
+            const statusText = log.status === 'Success' ? 'Completado' : 'Fallido';
+            
+            const actionText = log.target_type === 'group' ? 'Publicación en grupo' : 'Publicación en página';
+            
+            let detailsHtml = 'N/A';
+            if (log.published_post_url) {
+                detailsHtml = `<a href="${log.published_post_url}" target="_blank" style="color: var(--primary);">Ver Publicación</a>`;
+            } else if (log.status === 'Failed') {
+                detailsHtml = 'No se pudo publicar.';
+            }
+
+            return `
+                <tr>
+                    <td>${Utils.formatDateTime(log.timestamp)}</td>
+                    <td>${actionText}</td>
+                    <td style="max-width: 250px; word-wrap: break-word;">
+                        <a href="${log.target_url}" target="_blank">${Utils.truncateText(log.target_url, 40)}</a>
+                    </td>
+                    <td><span class="tag ${statusClass}">${statusText}</span></td>
+                    <td>${detailsHtml}</td>
+                </tr>
+            `;
+        }).join('');
+    },
+};
+
+// Manejo de contenido
+const ContentManager = {
+    // Añadir texto manual
+    async addManualText() {
+        const content = document.getElementById('manual-text-input').value.trim();
+        if (!content) {
+            Utils.showNotification('Error', 'Por favor ingresa un texto válido', 'warning');
+            return;
+        }
+
+        try {
+            Utils.showLoading(true);
+            const updatedTexts = await eel.add_manual_text(content)();
+            appState.data.texts = updatedTexts;
+            DataManager.updateTextsTable();
+            DataManager.updateStats();
+            document.getElementById('manual-text-input').value = '';
+            Utils.showNotification('Texto añadido', 'El texto se agregó correctamente', 'success');
+        } catch (error) {
+            console.error('Error añadiendo texto:', error);
+            Utils.showNotification('Error', 'No se pudo añadir el texto', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    // Generar textos con IA
+    async generateAiTexts() {
+        const topic = document.getElementById('ai-topic-input').value.trim();
+        const count = parseInt(document.getElementById('ai-count-input').value) || 5;
+
+        if (!topic) {
+            Utils.showNotification('Error', 'Por favor ingresa un tema válido', 'warning');
+            return;
+        }
+
+        try {
+            Utils.showLoading(true);
+            const updatedTexts = await eel.generate_ai_texts(topic, count)();
+            appState.data.texts = updatedTexts;
+            DataManager.updateTextsTable();
+            DataManager.updateStats();
+            document.getElementById('ai-topic-input').value = '';
+            Utils.showNotification('Textos generados', `Se generaron ${count} textos con IA`, 'success');
+        } catch (error) {
+            console.error('Error generando textos:', error);
+            Utils.showNotification('Error', 'No se pudieron generar los textos con IA', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    // Añadir imágenes
+    async addImages() {
+        const tags = document.getElementById('image-tags-input').value.trim();
+        if (!tags) {
+            Utils.showNotification('Error', 'Por favor ingresa etiquetas para las imágenes', 'warning');
+            return;
+        }
+
+        try {
+            Utils.showLoading(true);
+            const updatedImages = await eel.add_images(tags)();
+            appState.data.images = updatedImages;
+            DataManager.updateImagesTable();
+            DataManager.updateStats();
+            DataManager.updateSelects();
+            document.getElementById('image-tags-input').value = '';
+            Utils.showNotification('Imágenes añadidas', 'Las imágenes se agregaron correctamente', 'success');
+        } catch (error) {
+            console.error('Error añadiendo imágenes:', error);
+            Utils.showNotification('Error', 'No se pudieron añadir las imágenes', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    }
+};
+
+// Manejo de destinos
+const DestinationManager = {
+    // Añadir grupo individual
+    async addSingleGroup() {
+        const url = document.getElementById('group-url-input').value.trim();
+        const tags = document.getElementById('group-tags-single-input').value.trim();
+
+        if (!url) {
+            Utils.showNotification('Error', 'Por favor ingresa una URL válida', 'warning');
+            return;
+        }
+
+        if (!Utils.isValidUrl(url)) {
+            Utils.showNotification('Error', 'La URL ingresada no es válida', 'warning');
+            return;
+        }
+
+        try {
+            Utils.showLoading(true);
+            const updatedGroups = await eel.add_group(url, tags)();
+            appState.data.groups = updatedGroups;
+            DataManager.updateGroupsTable();
+            DataManager.updateStats();
+            document.getElementById('group-url-input').value = '';
+            document.getElementById('group-tags-single-input').value = '';
+            Utils.showNotification('Grupo añadido', 'El grupo se agregó correctamente', 'success');
+        } catch (error) {
+            console.error('Error añadiendo grupo:', error);
+            Utils.showNotification('Error', 'No se pudo añadir el grupo', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    // Importar grupos masivamente
+    async importBulkGroups() {
+        const urls = document.getElementById('bulk-groups-input').value.trim();
+        const tags = document.getElementById('bulk-tags-input').value.trim();
+
+        if (!urls) {
+            Utils.showNotification('Error', 'Por favor ingresa URLs válidas', 'warning');
+            return;
+        }
+
+        try {
+            Utils.showLoading(true);
+            const result = await eel.add_groups_bulk(urls, tags)();
+            appState.data = result;
+            DataManager.updateUI();
+            document.getElementById('bulk-groups-input').value = '';
+            document.getElementById('bulk-tags-input').value = '';
+            Utils.showNotification('Importación completada', 'Los grupos se importaron correctamente', 'success');
+        } catch (error) {
+            console.error('Error importando grupos:', error);
+            Utils.showNotification('Error', 'No se pudieron importar los grupos', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    // Añadir página
+    async addPage() {
+        const name = document.getElementById('page-name-input').value.trim();
+        const url = document.getElementById('page-url-input').value.trim();
+
+        if (!name || !url) {
+            Utils.showNotification('Error', 'Por favor completa todos los campos', 'warning');
+            return;
+        }
+
+        if (!Utils.isValidUrl(url)) {
+            Utils.showNotification('Error', 'La URL ingresada no es válida', 'warning');
+            return;
+        }
+
+        try {
+            Utils.showLoading(true);
+            const updatedPages = await eel.add_page(name, url)();
+            appState.data.pages = updatedPages;
+            DataManager.updatePagesTable();
+            DataManager.updateStats();
+            DataManager.updateSelects();
+            document.getElementById('page-name-input').value = '';
+            document.getElementById('page-url-input').value = '';
+            Utils.showNotification('Página añadida', 'La página se agregó correctamente', 'success');
+        } catch (error) {
+            console.error('Error añadiendo página:', error);
+            Utils.showNotification('Error', 'No se pudo añadir la página', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    }
+};
+
+// Manejo del programador
+const SchedulerManager = {
+    // Obtener sugerencia de contenido
+    async getContentSuggestion() {
+        const pageId = document.getElementById('schedule-page-select').value;
+        if (!pageId) {
+            Utils.showNotification('Error', 'Por favor selecciona una página', 'warning');
+            return;
+        }
+
+        try {
+            Utils.showLoading(true);
+            const suggestion = await eel.get_content_suggestion(pageId, "")();
+            
+            if (suggestion.success) {
+                document.getElementById('schedule-text-content').value = suggestion.text.content;
+                document.getElementById('schedule-image-select').value = suggestion.image.id;
+                Utils.showNotification('Contenido sugerido', 'Se ha sugerido contenido coherente', 'success');
+            } else {
+                Utils.showNotification('Sin sugerencias', suggestion.message, 'warning');
+            }
+        } catch (error) {
+            console.error('Error obteniendo sugerencia:', error);
+            Utils.showNotification('Error', 'No se pudo obtener una sugerencia', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    // Programar publicación
+    async schedulePost() {
+        const pageId = document.getElementById('schedule-page-select').value;
+        const publishAt = document.getElementById('schedule-datetime').value;
+        const textContent = document.getElementById('schedule-text-content').value.trim();
+        const imageId = document.getElementById('schedule-image-select').value || null;
+
+        if (!pageId) {
+            Utils.showNotification('Error', 'Por favor selecciona una página', 'warning');
+            return;
+        }
+
+        if (!publishAt) {
+            Utils.showNotification('Error', 'Por favor selecciona fecha y hora', 'warning');
+            return;
+        }
+
+        if (!textContent) {
+            Utils.showNotification('Error', 'Por favor ingresa el contenido del texto', 'warning');
+            return;
+        }
+
+        const data = {
+            page_id: parseInt(pageId),
+            publish_at: publishAt,
+            text_content: textContent,
+            image_id: imageId ? parseInt(imageId) : null
+        };
+
+        try {
+            Utils.showLoading(true);
+            const updatedScheduled = await eel.schedule_page_post(data)();
+            appState.data.scheduled_posts = updatedScheduled;
+            DataManager.updateScheduledPostsTable();
+            DataManager.updateStats();
+            
+            // Limpiar formulario
+            document.getElementById('schedule-page-select').value = '';
+            document.getElementById('schedule-datetime').value = '';
+            document.getElementById('schedule-text-content').value = '';
+            document.getElementById('schedule-image-select').value = '';
+            
+            Utils.showNotification('Publicación programada', 'La publicación se programó correctamente', 'success');
+        } catch (error) {
+            console.error('Error programando publicación:', error);
+            Utils.showNotification('Error', 'No se pudo programar la publicación', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    }
+};
+
+// Manejo de publicación en grupos
+const GroupPublishingManager = {
+    // Iniciar publicación en grupos
+    async startGroupPublishing() {
+        const groupTags = document.getElementById('group-tags-input').value.trim();
+        const contentTags = document.getElementById('content-tags-input').value.trim();
+
+        if (!groupTags || !contentTags) {
+            Utils.showNotification('Error', 'Por favor completa las etiquetas de grupos y contenido', 'warning');
+            return;
+        }
+
+        try {
+            Utils.showLoading(true);
+            const result = await eel.start_group_publishing_process(groupTags, contentTags)();
+            
+            if (result.success) {
+                appState.ui.isGroupPublishing = true;
+                this.updatePublishingUI(true);
+                Utils.showNotification('Publicación iniciada', result.message, 'success');
+            } else {
+                Utils.showNotification('Error', result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error iniciando publicación:', error);
+            Utils.showNotification('Error', 'No se pudo iniciar la publicación en grupos', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    // Detener publicación en grupos
+    async stopGroupPublishing() {
+        try {
+            Utils.showLoading(true);
+            const result = await eel.stop_group_publishing_process()();
+            
+            if (result.success) {
+                appState.ui.isGroupPublishing = false;
+                this.updatePublishingUI(false);
+                Utils.showNotification('Publicación detenida', 'El proceso se detuvo correctamente', 'success');
+            }
+        } catch (error) {
+            console.error('Error deteniendo publicación:', error);
+            Utils.showNotification('Error', 'No se pudo detener la publicación', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    // Actualizar interfaz de publicación
+    updatePublishingUI(isPublishing) {
+        const startBtn = document.getElementById('start-group-publishing');
+        const stopBtn = document.getElementById('stop-group-publishing');
+
+        if (isPublishing) {
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-flex';
+            startBtn.disabled = true;
+        } else {
+            startBtn.style.display = 'inline-flex';
+            stopBtn.style.display = 'none';
+            startBtn.disabled = false;
+        }
+    }
+};
+
+// Manejo de logs
+const LogManager = {
+    // Limpiar logs
+    clearLogs() {
+        const logPanel = document.getElementById('log-panel');
+        logPanel.innerHTML = '<p class="log-info">Logs limpiados.</p>';
+    },
+
+    // Añadir log (esta función será llamada desde Python)
+    addLog(message, type = 'info') {
+        const logPanel = document.getElementById('log-panel');
+        const logEntry = document.createElement('p');
+        logEntry.className = `log-${type}`;
+        logEntry.textContent = message;
+        logPanel.appendChild(logEntry);
+        logPanel.scrollTop = logPanel.scrollHeight;
+    }
+};
+
+// Exponer función correctamente para que Python pueda llamarla
+eel.expose(log_to_panel);
+function log_to_panel(message) {
+    LogManager.addLog(message);
+}
+
+// Manejo de interfaz
+const UIManager = {
+    // Inicializar interfaz
+    init() {
+        this.setupNavigation();
+        this.setupTheme();
+        this.setupMobileMenu();
+        this.setupEventListeners();
+        this.setupNotifications();
+    },
+
+
+
+
+    // Configurar navegación entre pestañas
+    setupNavigation() {
+        const navLinks = document.querySelectorAll('.nav-link');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                
+                const tabId = link.dataset.tab;
+                
+                // Actualizar enlaces activos
+                navLinks.forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                
+                // Actualizar contenido activo
+                tabContents.forEach(t => t.classList.remove('active'));
+                document.getElementById(tabId).classList.add('active');
+                
+                appState.ui.currentTab = tabId;
+                
+                // Cerrar menú móvil
+                if (window.innerWidth < 992) {
+                    document.getElementById('sidebar').classList.remove('active');
+                }
+            });
+        });
+    },
+
+    // Configurar tema
+    setupTheme() {
+        const themeToggle = document.getElementById('theme-toggle');
+        const currentTheme = localStorage.getItem('theme') || 'dark';
+        
+        document.body.setAttribute('data-theme', currentTheme);
+        themeToggle.innerHTML = currentTheme === 'dark' ? 
+            '<i class="fas fa-moon"></i>' : 
+            '<i class="fas fa-sun"></i>';
+        
+        themeToggle.addEventListener('click', () => {
+            const current = document.body.getAttribute('data-theme');
+            const newTheme = current === 'dark' ? 'light' : 'dark';
+            
+            document.body.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            
+            themeToggle.innerHTML = newTheme === 'dark' ? 
+                '<i class="fas fa-moon"></i>' : 
+                '<i class="fas fa-sun"></i>';
+        });
+    },
+
+    // Configurar menú móvil
+    setupMobileMenu() {
+        const mobileToggle = document.getElementById('mobile-menu-toggle');
+        const sidebar = document.getElementById('sidebar');
+
+        mobileToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('active');
+        });
+
+        // Cerrar menú al hacer clic fuera
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth < 992 && 
+                !sidebar.contains(e.target) && 
+                !mobileToggle.contains(e.target)) {
+                sidebar.classList.remove('active');
+            }
+        });
+    },
+
+    // Configurar eventos de botones
+    setupEventListeners() {
+        // --- LÓGICA DEL MODAL ---
+        const modal = document.getElementById('generic-modal');
+        const closeBtn = modal.querySelector('.modal-close-btn');
+        closeBtn.onclick = () => UIManager.closeModal();
+        window.onclick = (event) => {
+            if (event.target == modal) {
+                UIManager.closeModal();
+            }
+        };
+
+        // Botones de contenido
+        document.getElementById('add-manual-text').addEventListener('click', ContentManager.addManualText);
+        document.getElementById('generate-ai-texts').addEventListener('click', ContentManager.generateAiTexts);
+        document.getElementById('add-images').addEventListener('click', ContentManager.addImages);
+
+        // Botones de destinos
+        document.getElementById('add-single-group').addEventListener('click', DestinationManager.addSingleGroup);
+        document.getElementById('import-bulk-groups').addEventListener('click', DestinationManager.importBulkGroups);
+        document.getElementById('add-page').addEventListener('click', DestinationManager.addPage);
+
+        // Botones del programador
+        document.getElementById('get-content-suggestion').addEventListener('click', SchedulerManager.getContentSuggestion);
+        document.getElementById('schedule-post').addEventListener('click', SchedulerManager.schedulePost);
+
+        // Botones de publicación
+        document.getElementById('start-group-publishing').addEventListener('click', () => GroupPublishingManager.startGroupPublishing());
+        document.getElementById('stop-group-publishing').addEventListener('click', GroupPublishingManager.stopGroupPublishing);
+
+        // Botones de actualización
+        document.getElementById('refresh-content').addEventListener('click', DataManager.loadInitialData);
+        document.getElementById('refresh-destinations').addEventListener('click', DataManager.loadInitialData);
+        document.getElementById('refresh-scheduler').addEventListener('click', DataManager.loadInitialData);
+
+        // Botón de limpiar logs
+        document.getElementById('clear-log').addEventListener('click', LogManager.clearLogs);
+
+        // Envío con Enter en campos de texto
+        document.getElementById('manual-text-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                ContentManager.addManualText();
+            }
+        });
+    },
+
+    async saveTextUpdate(id) {
+        const newContent = document.getElementById('text-edit-textarea').value.trim();
+        if (!newContent) {
+            Utils.showNotification('Error', 'El contenido no puede estar vacío.', 'warning');
+            return;
+        }
+
+        try {
+            Utils.showLoading(true);
+            const updatedTexts = await eel.update_text(id, newContent)();
+            appState.data.texts = updatedTexts;
+            this.updateTextsTable();
+            UIManager.closeModal();
+            Utils.showNotification('Texto actualizado', 'El texto y sus etiquetas IA se actualizaron correctamente.', 'success');
+        } catch (error) {
+            console.error('Error guardando texto:', error);
+            Utils.showNotification('Error', 'No se pudo guardar el texto actualizado.', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    openModal() {
+        document.getElementById('generic-modal').style.display = 'block';
+    },
+
+    closeModal() {
+        document.getElementById('generic-modal').style.display = 'none';
+        document.getElementById('modal-body').innerHTML = ''; // Limpiar contenido al cerrar
+    },
+    
+    showImageModal(imagePath) {
+        const modalBody = document.getElementById('modal-body');
+        modalBody.innerHTML = `<img src="file:///${imagePath}" alt="Vista previa de imagen">`;
+        this.openModal();
+    },
+
+    showTextEditModal(id, content) {
+        const modalBody = document.getElementById('modal-body');
+        modalBody.innerHTML = `
+            <h3 style="margin-bottom: 15px;">Editar Texto</h3>
+            <textarea id="text-edit-textarea" class="form-control" style="min-height: 250px;">${content}</textarea>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="UIManager.closeModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="DataManager.saveTextUpdate(${id})">Guardar Cambios</button>
+            </div>
+        `;
+        this.openModal();
+    },
+
+    // Configurar notificaciones
+    setupNotifications() {
+        const notification = document.getElementById('notification');
+        const closeBtn = notification.querySelector('.notification-close');
+        
+        closeBtn.addEventListener('click', () => {
+            notification.classList.remove('show');
+        });
+    }
+};
+
+// Inicialización de la aplicación
+document.addEventListener('DOMContentLoaded', () => {
+    UIManager.init();
+    DataManager.loadInitialData();
+    
+    // Configurar fecha y hora mínima para el programador (ahora)
+    const now = new Date();
+    const localISOTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    document.getElementById('schedule-datetime').min = localISOTime;
+});
+
+// Manejo de errores globales
+window.addEventListener('error', (e) => {
+    console.error('Error global:', e.error);
+    Utils.showNotification('Error del sistema', 'Se ha producido un error inesperado', 'error');
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+    console.error('Promesa rechazada:', e.reason);
+    Utils.showNotification('Error del sistema', 'Se ha producido un error de conexión', 'error');
+});
+
+// Exponer función log_to_panel correctamente
+eel.expose(log_to_panel);
+function log_to_panel(message) {
+    const logPanel = document.getElementById('log-panel');
+    const logEntry = document.createElement('p');
+    logEntry.className = 'log-info';
+    logEntry.textContent = message;
+    logPanel.appendChild(logEntry);
+    logPanel.scrollTop = logPanel.scrollHeight;
+}
+
+// También exponer función de limpieza si la necesitas
+eel.expose(clear_log_panel);
+function clear_log_panel() {
+    const logPanel = document.getElementById('log-panel');
+    if (logPanel) {
+        logPanel.innerHTML = '<p class="log-info">Logs limpiados.</p>';
+    }
+}
+
+/**
+ * Esta función es llamada desde Python para actualizar la UI del botón
+ * de publicación en grupos (cambiar entre 'Iniciar' y 'Detener').
+ * @param {boolean} isPublishing - True si el proceso ha comenzado, false si ha terminado o fallado.
+ */
+eel.expose(update_publishing_status);
+function update_publishing_status(isPublishing) {
+    // Registra en la consola del navegador para depuración
+    console.log(`Señal desde Python: Estado de publicación es ahora ${isPublishing}`);
+    
+    // Actualiza el estado global de la aplicación en JavaScript
+    appState.ui.isGroupPublishing = isPublishing;
+    
+    // Llama a la función del objeto GroupPublishingManager que se encarga de la lógica visual
+    GroupPublishingManager.updatePublishingUI(isPublishing);
+}
+
+/**
+ * Esta función es llamada desde los 'workers' de Python después de que
+ * completan una tarea lenta (como añadir textos o imágenes).
+ * Recibe los datos actualizados y refresca la parte correspondiente de la interfaz.
+ * @param {string} dataType - El tipo de datos a actualizar ('texts', 'images', etc.).
+ * @param {Array} data - El array de datos actualizado desde la base de datos.
+ */
+eel.expose(update_data_view);
+function update_data_view(dataType, data) {
+    // Registra en la consola del navegador para depuración
+    console.log(`Recibiendo actualización de datos desde Python para: ${dataType}`);
+    
+    // Primero, actualiza el array de datos en el estado global de la aplicación
+    if (appState.data.hasOwnProperty(dataType)) {
+        appState.data[dataType] = data;
+    } else {
+        console.error(`El tipo de dato '${dataType}' no existe en appState.data`);
+        return;
+    }
+
+    // Luego, llama a la función específica que redibuja esa parte de la UI
+    switch(dataType) {
+        case 'texts':
+            DataManager.updateTextsTable();
+            Utils.showNotification('Textos Actualizados', 'La lista de textos ha sido refrescada.', 'info');
+            break;
+        case 'images':
+            DataManager.updateImagesTable();
+            DataManager.updateSelects(); // Actualiza también los menús desplegables de imágenes
+            Utils.showNotification('Imágenes Actualizadas', 'La lista de imágenes ha sido refrescada.', 'info');
+            break;
+        // Se pueden añadir más casos para otros tipos de datos en el futuro
+        // case 'groups':
+        //     DataManager.updateGroupsTable();
+        //     break;
+    }
+    
+    // Finalmente, actualiza los contadores y estadísticas generales
+    DataManager.updateStats();
+}

@@ -1,0 +1,2053 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marketing Automation Suite Pro</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- VARIABLES Y RESET --- */
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a56d4;
+            --secondary: #7209b7;
+            --success: #2a9d8f;
+            --danger: #e63946;
+            --warning: #fca311;
+            --info: #4cc9f0;
+            
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --bg-card: rgba(30, 41, 59, 0.8);
+            
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            
+            --border-color: #334155;
+            --border-radius: 16px;
+            --shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            --shadow-light: 0 5px 15px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f1f5f9;
+            --bg-secondary: #e2e8f0;
+            --bg-tertiary: #cbd5e1;
+            --bg-card: rgba(255, 255, 255, 0.9);
+            
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
+            --text-muted: #64748b;
+            
+            --border-color: #cbd5e1;
+            --shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary), #0c1220);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow-x: hidden;
+            transition: background 0.3s ease;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        /* --- LAYOUT PRINCIPAL --- */
+        .app-container {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            grid-template-rows: 70px 1fr;
+            grid-template-areas: 
+                "sidebar header"
+                "sidebar main";
+            height: 100vh;
+        }
+
+        /* --- HEADER --- */
+        .app-header {
+            grid-area: header;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .header-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-title i {
+            color: var(--primary);
+        }
+
+        .user-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 8px;
+            transition: var(--transition);
+        }
+
+        .user-profile:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+        }
+
+        .theme-toggle {
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: var(--transition);
+        }
+
+        .theme-toggle:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* --- SIDEBAR --- */
+        .sidebar {
+            grid-area: sidebar;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .brand {
+            padding: 0 20px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .brand-logo {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .brand-text {
+            font-size: 1.3rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-section {
+            margin-top: 20px;
+            padding: 0 10px;
+        }
+
+        .nav-title {
+            padding: 10px 15px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px 20px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            border-radius: 8px;
+            margin: 5px 10px;
+            transition: var(--transition);
+        }
+
+        .nav-link:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            background: rgba(67, 97, 238, 0.15);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+
+        /* --- MAIN CONTENT --- */
+        .main-content {
+            grid-area: main;
+            padding: 30px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- COMPONENTES REUTILIZABLES --- */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .page-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(10px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .card-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        }
+
+        textarea.form-control {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        .btn {
+            padding: 12px 22px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-size: 0.95rem;
+            min-height: 44px; /* Better touch target */
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            color: white;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(to right, var(--primary-dark), #6310a1);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+        .btn-secondary:hover {
+            background: #3c4a6c;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c1121f;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        .btn-success:hover {
+            background: #21867a;
+            transform: translateY(-2px);
+        }
+        
+        .btn-warning {
+            background: var(--warning);
+            color: #333;
+        }
+        .btn-warning:hover {
+            background: #e69500;
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .btn-sm {
+            padding: 8px 15px;
+            font-size: 0.85rem;
+            min-height: 38px;
+        }
+
+        .btn-icon {
+            padding: 10px;
+            width: 44px;
+            height: 44px;
+            justify-content: center;
+        }
+
+        /* --- MOBILE TOUCH BUTTONS --- */
+        .touch-btn {
+            min-height: 48px;
+            min-width: 48px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 16px;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            gap: 8px;
+        }
+
+        .touch-btn:active {
+            transform: scale(0.95);
+            background: var(--primary-dark);
+        }
+
+        /* --- TABLAS --- */
+        .table-container {
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            box-shadow: var(--shadow);
+            overflow-x: auto;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            min-width: 600px;
+        }
+        
+        .data-table th {
+            background: var(--bg-tertiary);
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+        
+        .data-table td {
+            padding: 14px 16px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .data-table tr:hover td {
+            background: rgba(67, 97, 238, 0.05);
+        }
+        
+        .data-table .actions {
+            text-align: right;
+            white-space: nowrap;
+        }
+        
+        .tag {
+            background: rgba(67, 97, 238, 0.15);
+            color: var(--primary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .tag-success {
+            background: rgba(42, 157, 143, 0.15);
+            color: var(--success);
+        }
+        
+        .tag-warning {
+            background: rgba(252, 163, 17, 0.15);
+            color: var(--warning);
+        }
+        
+        .tag-danger {
+            background: rgba(230, 57, 70, 0.15);
+            color: var(--danger);
+        }
+        
+        .image-preview {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        /* --- LOGS --- */
+        #log-panel {
+            background: #121826;
+            color: #cbd5e1;
+            height: 300px;
+            overflow-y: scroll;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+        
+        #log-panel p {
+            margin-bottom: 8px;
+            white-space: pre-wrap;
+        }
+        
+        .log-info {
+            color: #4cc9f0;
+        }
+        
+        .log-success {
+            color: #2a9d8f;
+        }
+        
+        .log-warning {
+            color: #fca311;
+        }
+        
+        .log-error {
+            color: #e63946;
+        }
+        
+        /* --- ESTADOS --- */
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        .status-dot.active {
+            background: var(--success);
+        }
+        
+        .status-dot.inactive {
+            background: var(--danger);
+        }
+        
+        /* --- DRAG & DROP MEJORADO PARA MÓVILES --- */
+        .drop-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 30px;
+            text-align: center;
+            transition: var(--transition);
+            cursor: pointer;
+            position: relative;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            touch-action: manipulation;
+        }
+
+        .drop-zone.highlight {
+            border-color: var(--primary);
+            background: rgba(67, 97, 238, 0.05);
+        }
+
+        .drop-zone.touch-active {
+            border-color: var(--success);
+            background: rgba(42, 157, 143, 0.05);
+            transform: scale(1.02);
+        }
+
+        .drop-zone i {
+            font-size: 2.5rem;
+            color: var(--text-muted);
+            margin-bottom: 15px;
+        }
+
+        .drop-zone p {
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .drop-zone .small-text {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Hidden file input for mobile */
+        .file-input {
+            display: none;
+        }
+
+        .drag-item {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            cursor: grab;
+            transition: var(--transition);
+            border: 1px solid transparent;
+            position: relative;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .drag-item:hover {
+            background: var(--bg-secondary);
+            border-color: var(--primary);
+        }
+
+        .drag-item.dragging {
+            opacity: 0.5;
+            transform: scale(0.98);
+        }
+
+        .drag-item.touch-dragging {
+            opacity: 0.8;
+            transform: scale(1.05);
+            z-index: 1000;
+            box-shadow: var(--shadow);
+        }
+
+        .drag-item .drag-icon {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: var(--text-muted);
+        }
+
+        .workflow-canvas {
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius);
+            min-height: 500px;
+            padding: 25px;
+            position: relative;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        .canvas-node {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            width: 180px;
+            position: absolute;
+            cursor: move;
+            box-shadow: var(--shadow-light);
+            transition: var(--transition);
+            z-index: 10;
+            touch-action: manipulation;
+        }
+
+        .canvas-node:hover {
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .canvas-node .node-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .canvas-node .node-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .canvas-node .node-title {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .canvas-node .node-content {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .node-handle {
+            width: 10px;
+            height: 10px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            cursor: pointer;
+        }
+
+        .connection-line {
+            position: absolute;
+            height: 2px;
+            background: var(--primary);
+            z-index: 5;
+            transform-origin: left center;
+        }
+
+        /* --- METRIC CARDS --- */
+        .metric-card {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+            color: var(--primary);
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        /* --- PREVIEW --- */
+        .preview-container {
+            background: var(--bg-card);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid var(--border-color);
+            max-width: 500px;
+        }
+
+        .preview-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 10px;
+        }
+
+        .preview-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .preview-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .preview-content {
+            color: var(--text-primary);
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        .preview-image {
+            width: 100%;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+        }
+
+        .preview-meta {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* --- PROGRESS BAR --- */
+        .progress-container {
+            width: 100%;
+            background: var(--bg-tertiary);
+            border-radius: 20px;
+            height: 8px;
+            margin: 15px 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            border-radius: 20px;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        /* --- MOBILE OPTIMIZATIONS --- */
+        @media (max-width: 992px) {
+            .app-container {
+                grid-template-columns: 1fr;
+                grid-template-areas: 
+                    "header"
+                    "main";
+            }
+            
+            .sidebar {
+                position: fixed;
+                left: -260px;
+                top: 0;
+                height: 100vh;
+                z-index: 1000;
+                transition: var(--transition);
+            }
+            
+            .sidebar.active {
+                left: 0;
+                box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
+            }
+            
+            .mobile-menu-toggle {
+                display: block !important;
+            }
+            
+            .main-content {
+                padding: 20px 15px;
+            }
+            
+            .page-title {
+                font-size: 1.5rem;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+            
+            .grid-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .app-header {
+                padding: 0 15px;
+            }
+            
+            .header-title span {
+                display: none;
+            }
+            
+            .user-profile span {
+                display: none;
+            }
+            
+            .page-header {
+                flex-direction: column;
+                align-items: stretch;
+                text-align: center;
+            }
+            
+            .card-header {
+                flex-direction: column;
+                align-items: stretch;
+                text-align: center;
+                gap: 15px;
+            }
+            
+            .drop-zone {
+                min-height: 150px;
+                padding: 20px;
+            }
+            
+            .drop-zone i {
+                font-size: 2rem;
+            }
+            
+            .canvas-node {
+                width: 150px;
+                padding: 15px;
+            }
+            
+            .workflow-canvas {
+                padding: 15px;
+                min-height: 400px;
+            }
+            
+            .data-table {
+                font-size: 0.9rem;
+            }
+            
+            .data-table th,
+            .data-table td {
+                padding: 10px 8px;
+            }
+            
+            .btn {
+                font-size: 0.9rem;
+                padding: 10px 16px;
+            }
+            
+            .btn-icon {
+                width: 40px;
+                height: 40px;
+            }
+            
+            .metric-value {
+                font-size: 1.5rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 15px 10px;
+            }
+            
+            .card {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+            
+            .page-title {
+                font-size: 1.3rem;
+            }
+            
+            .card-title {
+                font-size: 1.1rem;
+            }
+            
+            .drop-zone {
+                min-height: 120px;
+                padding: 15px;
+            }
+            
+            .canvas-node {
+                width: 130px;
+                padding: 12px;
+            }
+            
+            .workflow-canvas {
+                min-height: 300px;
+            }
+        }
+        
+        .mobile-menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            min-height: 44px;
+            min-width: 44px;
+        }
+
+        /* --- NOTIFICACIONES --- */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 2000;
+            box-shadow: var(--shadow);
+            max-width: 350px;
+            transform: translateX(120%);
+            transition: transform 0.4s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .notification.success .notification-icon {
+            background: rgba(42, 157, 143, 0.15);
+            color: var(--success);
+        }
+
+        .notification.warning .notification-icon {
+            background: rgba(252, 163, 17, 0.15);
+            color: var(--warning);
+        }
+
+        .notification.error .notification-icon {
+            background: rgba(230, 57, 70, 0.15);
+            color: var(--danger);
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-left">
+                <button class="mobile-menu-toggle" id="mobile-menu-toggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="header-title">
+                    <i class="fas fa-rocket"></i>
+                    <span>Marketing Automation Suite Pro</span>
+                </div>
+            </div>
+            <div class="user-actions">
+                <button class="theme-toggle" id="theme-toggle">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <div class="user-profile">
+                    <div class="user-avatar">JS</div>
+                    <span>John Smith</span>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+        </header>
+        
+        <aside class="sidebar" id="sidebar">
+            <div class="brand">
+                <div class="brand-logo">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="brand-text">MarketPro</div>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-title">Principal</div>
+                <a href="#" class="nav-link active" data-tab="dashboard">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Panel de Control</span>
+                </a>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-title">Contenido</div>
+                <a href="#" class="nav-link" data-tab="content">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Gestión de Contenido</span>
+                </a>
+                <a href="#" class="nav-link" data-tab="destinations">
+                    <i class="fas fa-bullseye"></i>
+                    <span>Destinos</span>
+                </a>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-title">Automatización</div>
+                <a href="#" class="nav-link" data-tab="scheduler">
+                    <i class="fas fa-clock"></i>
+                    <span>Programador</span>
+                </a>
+                <a href="#" class="nav-link" data-tab="workflows">
+                    <i class="fas fa-project-diagram"></i>
+                    <span>Flujos de Trabajo</span>
+                </a>
+                <a href="#" class="nav-link" data-tab="history">
+                    <i class="fas fa-history"></i>
+                    <span>Historial</span>
+                </a>
+            </div>
+            
+            <div class="nav-section" style="margin-top: auto;">
+                <a href="#" class="nav-link">
+                    <i class="fas fa-cog"></i>
+                    <span>Configuración</span>
+                </a>
+                <a href="#" class="nav-link">
+                    <i class="fas fa-question-circle"></i>
+                    <span>Soporte</span>
+                </a>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <!-- DASHBOARD -->
+            <div id="dashboard" class="tab-content active">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-tachometer-alt"></i> Panel de Control
+                    </h1>
+                    <div class="status-indicator">
+                        <span class="status-dot active"></span>
+                        <span>Conectado</span>
+                    </div>
+                </div>
+                
+                <div class="grid-container">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <i class="fas fa-users"></i> Publicación en Grupos
+                            </h2>
+                            <div class="tag tag-success">Activo</div>
+                        </div>
+                        <p class="text-muted" style="margin-bottom: 20px;">
+                            Arrastra contenido a la zona de publicación para iniciar el proceso
+                        </p>
+                        <div class="drop-zone" id="publishing-drop-zone">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Arrastra contenido aquí para publicar</p>
+                            <p class="small-text">Suelta para iniciar publicación en grupos</p>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <i class="fas fa-chart-bar"></i> Estadísticas
+                            </h2>
+                            <div class="tag">Últimas 24h</div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+                            <div class="metric-card">
+                                <div class="metric-value">24</div>
+                                <div class="metric-label">Publicaciones</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-value">18</div>
+                                <div class="metric-label">Grupos activos</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-value">86%</div>
+                                <div class="metric-label">Tasa éxito</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-value">5</div>
+                                <div class="metric-label">Programadas</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-terminal"></i> Consola de Actividad
+                        </h2>
+                        <button class="btn btn-sm btn-secondary">
+                            <i class="fas fa-sync"></i> Actualizar
+                        </button>
+                    </div>
+                    <div id="log-panel">
+                        <p class="log-info">[INFO] Sistema iniciado correctamente</p>
+                        <p class="log-success">[ÉXITO] Publicación en grupo "Venta de Coches" completada</p>
+                        <p class="log-warning">[ADVERTENCIA] Grupo "Ofertas Madrid" requiere aprobación manual</p>
+                        <p class="log-info">[INFO] 3 nuevos textos generados con IA</p>
+                        <p class="log-error">[ERROR] No se pudo publicar en "Autos Clásicos" - Intento fallido</p>
+                        <p class="log-info">Bienvenido. Las acciones en segundo plano se mostrarán aquí.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- CONTENT MANAGEMENT -->
+            <div id="content" class="tab-content">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-file-alt"></i> Gestión de Contenido
+                    </h1>
+                    <button class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Nuevo Contenido
+                    </button>
+                </div>
+                
+                <div class="grid-container">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <i class="fas fa-pen-fancy"></i> Textos
+                            </h2>
+                        </div>
+                        <div class="drag-item" draggable="true">
+                            <i class="fas fa-grip-lines drag-icon"></i>
+                            <p>¡Oferta especial! Ford Focus 2019 con solo 30,000 km. Precio imbatible.</p>
+                            <div class="tags">
+                                <span class="tag">coche</span>
+                                <span class="tag">oferta</span>
+                                <span class="tag">ford</span>
+                            </div>
+                        </div>
+                        <div class="drag-item" draggable="true">
+                            <i class="fas fa-grip-lines drag-icon"></i>
+                            <p>¿Buscas un coche familiar? Tenemos el Volkswagen Golf que necesitas.</p>
+                            <div class="tags">
+                                <span class="tag">familiar</span>
+                                <span class="tag">volkswagen</span>
+                            </div>
+                        </div>
+                        <div class="drag-item" draggable="true">
+                            <i class="fas fa-grip-lines drag-icon"></i>
+                            <p>Nuevos modelos disponibles con descuentos especiales este mes.</p>
+                            <div class="tags">
+                                <span class="tag">nuevos</span>
+                                <span class="tag">descuentos</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <i class="fas fa-images"></i> Imágenes
+                            </h2>
+                        </div>
+                        <div class="drop-zone" id="image-drop-zone">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Arrastra imágenes aquí para subir</p>
+                            <p class="small-text">Formatos: JPG, PNG, GIF (Máx. 5MB)</p>
+                        </div>
+                        <div class="grid-container" style="grid-template-columns: repeat(2, 1fr); margin-top: 20px;">
+                            <div class="drag-item" draggable="true">
+                                <i class="fas fa-grip-lines drag-icon"></i>
+                                <img src="https://via.placeholder.com/300x200/4361ee/ffffff?text=Ford+Focus" style="width:100%; border-radius:8px; margin-bottom:10px;">
+                                <div class="tags">
+                                    <span class="tag">ford</span>
+                                    <span class="tag">rojo</span>
+                                </div>
+                            </div>
+                            <div class="drag-item" draggable="true">
+                                <i class="fas fa-grip-lines drag-icon"></i>
+                                <img src="https://via.placeholder.com/300x200/7209b7/ffffff?text=VW+Golf" style="width:100%; border-radius:8px; margin-bottom:10px;">
+                                <div class="tags">
+                                    <span class="tag">volkswagen</span>
+                                    <span class="tag">azul</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-database"></i> Contenido Existente
+                        </h2>
+                        <div class="tabs">
+                            <button class="btn btn-sm btn-secondary active">Textos</button>
+                            <button class="btn btn-sm btn-secondary">Imágenes</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="texts-table">
+                            <thead>
+                                <tr>
+                                    <th>Contenido</th>
+                                    <th>Etiquetas IA</th>
+                                    <th class="actions">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>¡Oferta especial! Ford Focus 2019 con solo 30,000 km. Precio imbatible.</td>
+                                    <td>
+                                        <span class="tag">coche</span>
+                                        <span class="tag">oferta</span>
+                                        <span class="tag">ford</span>
+                                    </td>
+                                    <td class="actions">
+                                        <button class="btn btn-sm btn-icon btn-secondary">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-icon btn-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>¿Buscas un coche familiar? Tenemos el Volkswagen Golf que necesitas.</td>
+                                    <td>
+                                        <span class="tag">familiar</span>
+                                        <span class="tag">volkswagen</span>
+                                    </td>
+                                    <td class="actions">
+                                        <button class="btn btn-sm btn-icon btn-secondary">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-icon btn-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- DESTINATIONS -->
+            <div id="destinations" class="tab-content">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-bullseye"></i> Destinos de Publicación
+                    </h1>
+                    <button class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Añadir Destino
+                    </button>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-users"></i> Grupos Conectados
+                        </h2>
+                        <div class="tag">18 grupos activos</div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="groups-table">
+                            <thead>
+                                <tr>
+                                    <th>Nombre del Grupo</th>
+                                    <th>Miembros</th>
+                                    <th>Última Publicación</th>
+                                    <th>Estado</th>
+                                    <th class="actions">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Venta de Coches Madrid</td>
+                                    <td>24.5K</td>
+                                    <td>Hoy, 09:45</td>
+                                    <td><span class="tag tag-success">Activo</span></td>
+                                    <td class="actions">
+                                        <button class="btn btn-sm btn-icon btn-secondary">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-icon btn-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Concesionario Premium</td>
+                                    <td>18.2K</td>
+                                    <td>Ayer, 16:30</td>
+                                    <td><span class="tag tag-success">Activo</span></td>
+                                    <td class="actions">
+                                        <button class="btn btn-sm btn-icon btn-secondary">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-icon btn-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Ofertas de Coches</td>
+                                    <td>32.7K</td>
+                                    <td>12/08/2025</td>
+                                    <td><span class="tag tag-warning">Pausado</span></td>
+                                    <td class="actions">
+                                        <button class="btn btn-sm btn-icon btn-secondary">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-icon btn-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- WORKFLOWS -->
+            <div id="workflows" class="tab-content">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-project-diagram"></i> Flujos de Trabajo
+                    </h1>
+                    <button class="btn btn-primary" id="new-workflow-btn">
+                        <i class="fas fa-plus"></i> Nuevo Flujo
+                    </button>
+                </div>
+                
+                <div class="grid-container">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <i class="fas fa-puzzle-piece"></i> Bloques Disponibles
+                            </h2>
+                        </div>
+                        <div class="drag-item" draggable="true">
+                            <i class="fas fa-grip-lines drag-icon"></i>
+                            <div class="node-header">
+                                <div class="node-icon">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="node-title">Publicar en Grupos</div>
+                            </div>
+                            <div class="node-content">Publica contenido en grupos seleccionados</div>
+                        </div>
+                        <div class="drag-item" draggable="true">
+                            <i class="fas fa-grip-lines drag-icon"></i>
+                            <div class="node-header">
+                                <div class="node-icon">
+                                    <i class="fas fa-robot"></i>
+                                </div>
+                                <div class="node-title">Generar Contenido IA</div>
+                            </div>
+                            <div class="node-content">Crea textos con Inteligencia Artificial</div>
+                        </div>
+                        <div class="drag-item" draggable="true">
+                            <i class="fas fa-grip-lines drag-icon"></i>
+                            <div class="node-header">
+                                <div class="node-icon">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                                <div class="node-title">Programar</div>
+                            </div>
+                            <div class="node-content">Programa la ejecución de acciones</div>
+                        </div>
+                        <div class="drag-item" draggable="true">
+                            <i class="fas fa-grip-lines drag-icon"></i>
+                            <div class="node-header">
+                                <div class="node-icon">
+                                    <i class="fas fa-filter"></i>
+                                </div>
+                                <div class="node-title">Filtrar Grupos</div>
+                            </div>
+                            <div class="node-content">Filtra grupos por reglas específicas</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <i class="fas fa-project-diagram"></i> Diseñador de Flujos
+                            </h2>
+                            <div class="tag">Guardado: Hace 5 min</div>
+                        </div>
+                        <div class="workflow-canvas" id="workflow-canvas">
+                            <div class="canvas-node" style="top: 50px; left: 50px;">
+                                <div class="node-header">
+                                    <div class="node-icon">
+                                        <i class="fas fa-robot"></i>
+                                    </div>
+                                    <div class="node-title">Generar Contenido</div>
+                                </div>
+                                <div class="node-content">Tema: Ofertas de vehículos</div>
+                                <div class="node-handle"></div>
+                            </div>
+                            <div class="canvas-node" style="top: 50px; left: 300px;">
+                                <div class="node-header">
+                                    <div class="node-icon">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                    <div class="node-title">Publicar en Grupos</div>
+                                </div>
+                                <div class="node-content">18 grupos seleccionados</div>
+                                <div class="node-handle"></div>
+                            </div>
+                            <div class="canvas-node" style="top: 200px; left: 175px;">
+                                <div class="node-header">
+                                    <div class="node-icon">
+                                        <i class="fas fa-filter"></i>
+                                    </div>
+                                    <div class="node-title">Filtrar Grupos</div>
+                                </div>
+                                <div class="node-content">Reglas activas: 3</div>
+                                <div class="node-handle"></div>
+                            </div>
+                            <div class="connection-line" style="width: 220px; top: 95px; left: 170px; transform: rotate(0deg);"></div>
+                            <div class="connection-line" style="width: 220px; top: 95px; left: 170px; transform: rotate(90deg); top: 145px; left: 260px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- SCHEDULER -->
+            <div id="scheduler" class="tab-content">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-clock"></i> Programador de Publicaciones
+                    </h1>
+                    <button class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Nueva Programación
+                    </button>
+                </div>
+                
+                <div class="grid-container">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <i class="fas fa-calendar-plus"></i> Nueva Publicación Programada
+                            </h2>
+                        </div>
+                        <div class="drop-zone" id="scheduler-drop-zone">
+                            <i class="fas fa-calendar-alt"></i>
+                            <p>Arrastra contenido aquí para programar</p>
+                            <p class="small-text">Suelta para crear publicación programada</p>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <i class="fas fa-history"></i> Próximas Publicaciones
+                            </h2>
+                            <div class="tag">5 programadas</div>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 15px;">
+                            <div class="scheduled-item">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <div style="font-weight: 500;">Concesionario Premium</div>
+                                    <div class="tag tag-warning">Pendiente</div>
+                                </div>
+                                <div style="font-size: 0.9rem; color: var(--text-muted); margin: 5px 0;">Hoy, 15:30</div>
+                                <div style="font-size: 0.9rem;">Oferta especial en Ford Focus 2019 con solo 30,000 km...</div>
+                                <div class="progress-container">
+                                    <div class="progress-bar" style="width: 75%;"></div>
+                                </div>
+                            </div>
+                            <hr style="border-color: var(--border-color);">
+                            <div class="scheduled-item">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <div style="font-weight: 500;">Venta de Coches Madrid</div>
+                                    <div class="tag tag-success">Activo</div>
+                                </div>
+                                <div style="font-size: 0.9rem; color: var(--text-muted); margin: 5px 0;">Mañana, 10:00</div>
+                                <div style="font-size: 0.9rem;">Nuevo lote de Volkswagen Golf disponibles...</div>
+                                <div class="progress-container">
+                                    <div class="progress-bar" style="width: 30%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-list"></i> Publicaciones Programadas
+                        </h2>
+                        <div class="tabs">
+                            <button class="btn btn-sm btn-secondary active">Todas</button>
+                            <button class="btn btn-sm btn-secondary">Pendientes</button>
+                            <button class="btn btn-sm btn-secondary">Completadas</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="scheduled-posts-table">
+                            <thead>
+                                <tr>
+                                    <th>Página</th>
+                                    <th>Contenido</th>
+                                    <th>Imagen</th>
+                                    <th>Fecha</th>
+                                    <th>Estado</th>
+                                    <th class="actions">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Concesionario Premium</td>
+                                    <td style="max-width: 300px; white-space: pre-wrap;">¡Oferta especial! Ford Focus 2019 con solo 30,000 km. Precio imbatible.</td>
+                                    <td><img src="https://via.placeholder.com/50" class="image-preview"></td>
+                                    <td>12/08/2025 15:30</td>
+                                    <td><span class="tag tag-warning">Pendiente</span></td>
+                                    <td class="actions">
+                                        <button class="btn btn-sm btn-icon btn-secondary">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-icon btn-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Venta de Coches Madrid</td>
+                                    <td style="max-width: 300px; white-space: pre-wrap;">¿Buscas un coche familiar? Tenemos el Volkswagen Golf que necesitas.</td>
+                                    <td><img src="https://via.placeholder.com/50" class="image-preview"></td>
+                                    <td>13/08/2025 10:00</td>
+                                    <td><span class="tag tag-success">Activo</span></td>
+                                    <td class="actions">
+                                        <button class="btn btn-sm btn-icon btn-secondary">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-icon btn-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- HISTORY -->
+            <div id="history" class="tab-content">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-history"></i> Historial de Actividades
+                    </h1>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-download"></i> Exportar
+                    </button>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-list"></i> Últimas Actividades
+                        </h2>
+                        <div class="tabs">
+                            <button class="btn btn-sm btn-secondary active">Todos</button>
+                            <button class="btn btn-sm btn-secondary">Publicaciones</button>
+                            <button class="btn btn-sm btn-secondary">Programaciones</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="activity-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Acción</th>
+                                    <th>Destino</th>
+                                    <th>Estado</th>
+                                    <th>Resultado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>12/08/2025 09:45</td>
+                                    <td>Publicación en grupo</td>
+                                    <td>Venta de Coches Madrid</td>
+                                    <td><span class="tag tag-success">Completado</span></td>
+                                    <td>156 interacciones</td>
+                                </tr>
+                                <tr>
+                                    <td>12/08/2025 08:30</td>
+                                    <td>Programación creada</td>
+                                    <td>Concesionario Premium</td>
+                                    <td><span class="tag tag-warning">Pendiente</span></td>
+                                    <td>Programado para hoy 15:30</td>
+                                </tr>
+                                <tr>
+                                    <td>11/08/2025 16:20</td>
+                                    <td>Publicación en grupo</td>
+                                    <td>Ofertas de Coches</td>
+                                    <td><span class="tag tag-error">Fallido</span></td>
+                                    <td>Requiere aprobación manual</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification success" id="notification">
+        <div class="notification-icon">
+            <i class="fas fa-check"></i>
+        </div>
+        <div class="notification-content">
+            <div class="notification-title">Publicación creada</div>
+            <div>Se ha programado correctamente la publicación</div>
+        </div>
+        <button class="notification-close">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Mobile menu toggle
+    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+    const sidebar = document.getElementById('sidebar');
+    
+    mobileMenuToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('active');
+    });
+
+    // Tab navigation
+    const navLinks = document.querySelectorAll('.nav-link');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            navLinks.forEach(l => l.classList.remove('active'));
+            tabContents.forEach(t => t.classList.remove('active'));
+            
+            link.classList.add('active');
+            document.getElementById(link.dataset.tab).classList.add('active');
+            
+            // Close sidebar on mobile after selection
+            if (window.innerWidth < 992) {
+                sidebar.classList.remove('active');
+            }
+        });
+    });
+
+    // Theme toggle with localStorage persistence
+    const themeToggle = document.getElementById('theme-toggle');
+    const currentTheme = localStorage.getItem('theme') || 'dark';
+    
+    document.body.setAttribute('data-theme', currentTheme);
+    
+    if (currentTheme === 'light') {
+        themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+    }
+    
+    themeToggle.addEventListener('click', () => {
+        const currentTheme = document.body.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        
+        document.body.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        
+        themeToggle.innerHTML = newTheme === 'dark' ? 
+            '<i class="fas fa-moon"></i>' : 
+            '<i class="fas fa-sun"></i>';
+    });
+
+    // Drag and drop functionality
+    const setupDragAndDrop = () => {
+        const draggables = document.querySelectorAll('.drag-item');
+        const dropZones = document.querySelectorAll('.drop-zone');
+        const canvas = document.getElementById('workflow-canvas');
+
+        draggables.forEach(draggable => {
+            draggable.addEventListener('dragstart', () => {
+                draggable.classList.add('dragging');
+            });
+
+            draggable.addEventListener('dragend', () => {
+                draggable.classList.remove('dragging');
+            });
+        });
+
+        dropZones.forEach(zone => {
+            zone.addEventListener('dragover', e => {
+                e.preventDefault();
+                zone.classList.add('highlight');
+            });
+
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('highlight');
+            });
+
+            zone.addEventListener('drop', e => {
+                e.preventDefault();
+                zone.classList.remove('highlight');
+                
+                const draggable = document.querySelector('.dragging');
+                if (draggable) {
+                    // Create a clone for the drop zone
+                    const clone = draggable.cloneNode(true);
+                    clone.classList.remove('dragging');
+                    clone.draggable = false;
+                    
+                    // Add to drop zone with animation
+                    clone.style.opacity = '0';
+                    clone.style.transform = 'scale(0.8)';
+                    zone.innerHTML = '';
+                    zone.appendChild(clone);
+                    
+                    // Animate in
+                    setTimeout(() => {
+                        clone.style.transition = 'all 0.3s ease';
+                        clone.style.opacity = '1';
+                        clone.style.transform = 'scale(1)';
+                    }, 10);
+                    
+                    // Show notification
+                    showNotification('Contenido añadido', 'El elemento se ha colocado correctamente', 'success');
+                    
+                    // If scheduler drop zone, show preview
+                    if (zone.id === 'scheduler-drop-zone') {
+                        showPreview(clone);
+                    }
+                    
+                    // If publishing drop zone, show success
+                    if (zone.id === 'publishing-drop-zone') {
+                        showNotification('Publicación iniciada', 'La publicación en grupos ha comenzado', 'success');
+                    }
+                }
+            });
+        });
+
+        // Canvas drop functionality
+        canvas.addEventListener('dragover', e => {
+            e.preventDefault();
+            canvas.classList.add('highlight');
+        });
+
+        canvas.addEventListener('dragleave', () => {
+            canvas.classList.remove('highlight');
+        });
+
+        canvas.addEventListener('drop', e => {
+            e.preventDefault();
+            canvas.classList.remove('highlight');
+            
+            const draggable = document.querySelector('.dragging');
+            if (draggable) {
+                const clone = draggable.cloneNode(true);
+                clone.classList.remove('dragging');
+                clone.classList.add('canvas-node');
+                clone.draggable = true;
+                clone.style.position = 'absolute';
+                clone.style.top = `${e.offsetY}px`;
+                clone.style.left = `${e.offsetX}px`;
+                
+                // Add node handle
+                const handle = document.createElement('div');
+                handle.classList.add('node-handle');
+                clone.appendChild(handle);
+                
+                canvas.appendChild(clone);
+                
+                // Make new node draggable
+                setupNodeDragging(clone);
+                
+                showNotification('Nodo añadido', 'El bloque se ha añadido al flujo de trabajo', 'success');
+            }
+        });
+    };
+
+    // Make canvas nodes draggable
+    const setupNodeDragging = (node) => {
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        
+        node.onmousedown = dragMouseDown;
+        
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+            // Get the mouse cursor position at startup
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDragElement;
+            // Call a function whenever the cursor moves
+            document.onmousemove = elementDrag;
+        }
+        
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+            // Calculate the new cursor position
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            // Set the element's new position
+            node.style.top = (node.offsetTop - pos2) + "px";
+            node.style.left = (node.offsetLeft - pos1) + "px";
+        }
+        
+        function closeDragElement() {
+            // Stop moving when mouse button is released
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
+    };
+
+    // Show preview in scheduler
+    const showPreview = (element) => {
+        // Remove existing preview if any
+        const existingPreview = document.querySelector('.preview-container');
+        if (existingPreview) existingPreview.remove();
+        
+        const previewContainer = document.createElement('div');
+        previewContainer.classList.add('preview-container');
+        
+        // Extract content from element
+        let content = '';
+        let imageUrl = '';
+        
+        if (element.querySelector('p')) {
+            content = element.querySelector('p').textContent;
+        }
+        
+        if (element.querySelector('img')) {
+            imageUrl = element.querySelector('img').src;
+        }
+        
+        // Build preview
+        previewContainer.innerHTML = `
+            <div class="preview-header">
+                <div class="preview-avatar">CP</div>
+                <div class="preview-name">Concesionario Premium</div>
+            </div>
+            <div class="preview-content">${content}</div>
+            ${imageUrl ? `<img src="${imageUrl}" class="preview-image">` : ''}
+            <div class="preview-meta">Publicación programada para hoy a las 15:30</div>
+        `;
+        
+        // Insert after drop zone
+        const dropZone = document.getElementById('scheduler-drop-zone');
+        dropZone.parentNode.insertBefore(previewContainer, dropZone.nextSibling);
+    };
+
+    // Show notification
+    const showNotification = (title, message, type) => {
+        const notification = document.getElementById('notification');
+        notification.querySelector('.notification-title').textContent = title;
+        notification.querySelector('.notification-content div:last-child').textContent = message;
+        notification.className = `notification ${type}`;
+        notification.classList.add('show');
+        
+        // Close button
+        notification.querySelector('.notification-close').addEventListener('click', () => {
+            notification.classList.remove('show');
+        });
+        
+        // Auto close
+        setTimeout(() => {
+            notification.classList.remove('show');
+        }, 5000);
+    };
+
+    // Initialize drag and drop
+    setupDragAndDrop();
+    
+    // Initialize existing canvas nodes
+    document.querySelectorAll('.canvas-node').forEach(node => {
+        setupNodeDragging(node);
+    });
+
+    // Table row actions
+    document.querySelectorAll('.btn-danger').forEach(button => {
+        button.addEventListener('click', (e) => {
+            if (confirm('¿Estás seguro de que deseas eliminar este elemento?')) {
+                const row = e.target.closest('tr');
+                row.style.opacity = '0';
+                setTimeout(() => {
+                    row.remove();
+                    showNotification('Elemento eliminado', 'El elemento se ha eliminado correctamente', 'success');
+                }, 300);
+            }
+        });
+    });
+
+    // New workflow button
+    document.getElementById('new-workflow-btn').addEventListener('click', () => {
+        showNotification('Nuevo flujo', 'Se ha creado un nuevo flujo de trabajo', 'success');
+        
+        // Clear canvas
+        const canvas = document.getElementById('workflow-canvas');
+        canvas.innerHTML = '';
+        
+        // Add start node
+        const startNode = document.createElement('div');
+        startNode.className = 'canvas-node';
+        startNode.style.top = '50px';
+        startNode.style.left = '50px';
+        startNode.innerHTML = `
+            <div class="node-header">
+                <div class="node-icon">
+                    <i class="fas fa-play"></i>
+                </div>
+                <div class="node-title">Inicio</div>
+            </div>
+            <div class="node-content">Arrastra bloques aquí</div>
+            <div class="node-handle"></div>
+        `;
+        canvas.appendChild(startNode);
+        setupNodeDragging(startNode);
+    });
+});
+</script>
+</body>
+</html>
+
