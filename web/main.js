@@ -25,6 +25,14 @@ const Utils = {
         }
     },
 
+    // Construir ruta de imagen correcta para el servidor HTTP
+    getImageSrc(imagePath) {
+        if (!imagePath) return '';
+        // Extraer solo el nombre del archivo de la ruta
+        const filename = imagePath.split('/').pop().split('\\').pop();
+        return `http://127.0.0.1:5001/images/${filename}`;
+    },
+
     // Mostrar notificaciones
     showNotification(title, message, type = 'success') {
         const notification = document.getElementById('notification');
@@ -34,9 +42,9 @@ const Utils = {
 
         titleEl.textContent = title;
         messageEl.textContent = message;
-        
+
         // Cambiar icono según el tipo
-        switch(type) {
+        switch (type) {
             case 'success':
                 iconEl.className = 'fas fa-check';
                 break;
@@ -92,6 +100,10 @@ const DataManager = {
             const data = await eel.get_initial_data()();
             appState.data = data;
             this.updateUI();
+
+            // Cargar sesiones
+            await this.loadSessions();
+
             this.updateStatus(true);
             Utils.showNotification('Sistema Iniciado', 'Datos cargados correctamente', 'success');
         } catch (error) {
@@ -103,16 +115,147 @@ const DataManager = {
         }
     },
 
+    // Cargar sesiones
+    async loadSessions() {
+        try {
+            const result = await eel.get_all_sessions()();
+            if (result.success) {
+                appState.sessions = result.sessions;
+                this.updateSessionsUI();
+            }
+        } catch (error) {
+            console.error('Error cargando sesiones:', error);
+        }
+    },
+
+    // Actualizar interfaz de sesiones
+    updateSessionsUI() {
+        const container = document.getElementById('sessions-container');
+        if (!container) return;
+
+        if (!appState.sessions || appState.sessions.length === 0) {
+            container.innerHTML = `
+                <div class="sessions-loading">
+                    <i class="fas fa-layer-group"></i>
+                    <p>No hay sesiones creadas</p>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">Haz clic en "Nueva Sesión" para crear una</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = appState.sessions.map(session => {
+            const progressPercentage = session.total_groups > 0
+                ? (session.current_group_index / session.total_groups) * 100
+                : 0;
+
+            return `
+                <div class="session-card" data-session-id="${session.id}">
+                    <div class="session-header">
+                        <h3 class="session-name">${session.name}</h3>
+                        <span class="session-status ${session.status}">${this.getStatusText(session.status)}</span>
+                    </div>
+                    
+                    <div class="session-progress">
+                        Progreso: ${session.current_group_index}/${session.total_groups} grupos
+                    </div>
+                    <div class="session-progress-bar">
+                        <div class="session-progress-fill" style="width: ${progressPercentage}%"></div>
+                    </div>
+                    
+                    <div class="session-config">
+                        <div class="session-config-item">
+                            <span class="session-config-label">Grupos:</span>
+                            <span class="session-config-value">${session.config.group_tags}</span>
+                        </div>
+                        <div class="session-config-item">
+                            <span class="session-config-label">Contenido:</span>
+                            <span class="session-config-value">${session.config.content_tags}</span>
+                        </div>
+                        <div class="session-config-item">
+                            <span class="session-config-label">Tipo:</span>
+                            <span class="session-config-value">${this.getPublicationTypeText(session.config.publication_type)}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="session-actions">
+                        ${this.getSessionActionButtons(session)}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+
+    getStatusText(status) {
+        const statusMap = {
+            'active': 'Activa',
+            'paused': 'Pausada',
+            'inactive': 'Inactiva',
+            'error': 'Error',
+            'completed': 'Completada'
+        };
+        return statusMap[status] || status;
+    },
+
+    getPublicationTypeText(type) {
+        const typeMap = {
+            'text-only': 'Solo Texto',
+            'text-and-image': 'Texto + Imagen'
+        };
+        return typeMap[type] || type;
+    },
+
+    getSessionActionButtons(session) {
+        let buttons = [];
+
+        switch (session.status) {
+            case 'inactive':
+                buttons.push(`<button class="session-action-btn start" onclick="SessionManager.startSession(${session.id})">
+                    <i class="fas fa-play"></i> Iniciar
+                </button>`);
+                break;
+            case 'active':
+                buttons.push(`<button class="session-action-btn pause" onclick="SessionManager.pauseSession(${session.id})">
+                    <i class="fas fa-pause"></i> Pausar
+                </button>`);
+                buttons.push(`<button class="session-action-btn stop" onclick="SessionManager.stopSession(${session.id})">
+                    <i class="fas fa-stop"></i> Detener
+                </button>`);
+                break;
+            case 'paused':
+                buttons.push(`<button class="session-action-btn start" onclick="SessionManager.startSession(${session.id})">
+                    <i class="fas fa-play"></i> Reanudar
+                </button>`);
+                buttons.push(`<button class="session-action-btn stop" onclick="SessionManager.stopSession(${session.id})">
+                    <i class="fas fa-stop"></i> Detener
+                </button>`);
+                break;
+            case 'error':
+                buttons.push(`<button class="session-action-btn start" onclick="SessionManager.startSession(${session.id})">
+                    <i class="fas fa-redo"></i> Reintentar
+                </button>`);
+                break;
+        }
+
+        buttons.push(`<button class="session-action-btn delete" onclick="SessionManager.deleteSession(${session.id})">
+            <i class="fas fa-trash"></i> Eliminar
+        </button>`);
+
+        return buttons.join('');
+    },
+
     // Actualizar interfaz con los datos
     updateUI() {
         this.updateStats();
         this.updateTextsTable();
         this.updateImagesTable();
+        this.updateImageGallery();
         this.updateGroupsTable();
         this.updatePagesTable();
         this.updateScheduledPostsTable();
         this.updateSelects();
         this.updateHistoryTable();
+        this.updatePublicationPreview();
     },
 
     // Actualizar estadísticas del dashboard
@@ -131,7 +274,7 @@ const DataManager = {
     },
 
 
-        // Actualizar tabla de textos
+    // Actualizar tabla de textos
     updateTextsTable() {
         const tbody = document.getElementById('texts-table-body');
         if (!appState.data.texts || appState.data.texts.length === 0) {
@@ -147,7 +290,7 @@ const DataManager = {
             } else if (usageCount >= 10) {
                 usageClass = 'tag-danger';
             }
-            
+
             // Escapar el contenido para que no rompa el HTML en el onclick
             const escapedContent = text.content.replace(/`/g, '\\`').replace(/\$/g, '\\$');
 
@@ -156,9 +299,9 @@ const DataManager = {
                     <td>${text.id}</td>
                     <td style="max-width: 300px; word-wrap: break-word;">${Utils.truncateText(text.content)}</td>
                     <td>
-                        ${(text.ai_tags || '').split(',').filter(tag => tag.trim()).map(tag => 
-                            `<span class="tag">${tag.trim()}</span>`
-                        ).join('')}
+                        ${(text.ai_tags || '').split(',').filter(tag => tag.trim()).map(tag =>
+                `<span class="tag">${tag.trim()}</span>`
+            ).join('')}
                     </td>
                     <td>
                         <span class="tag ${usageClass}">${usageCount}</span>
@@ -166,6 +309,12 @@ const DataManager = {
                     <td class="actions">
                         <button class="btn btn-sm btn-icon btn-secondary" onclick="UIManager.showTextEditModal(${text.id}, \`${escapedContent}\`)">
                             <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-icon btn-info" onclick="UIManager.showTextTagsEditModal(${text.id}, '${(text.ai_tags || '').replace(/'/g, "\\'")}')" title="Editar etiquetas">
+                            <i class="fas fa-tags"></i>
+                        </button>
+                        <button class="btn btn-sm btn-icon btn-warning" onclick="DataManager.regenerateTextTags(${text.id})" title="Regenerar etiquetas con IA">
+                            <i class="fas fa-magic"></i>
                         </button>
                         <button class="btn btn-sm btn-icon btn-danger" onclick="DataManager.deleteText(${text.id})">
                             <i class="fas fa-trash"></i>
@@ -176,8 +325,8 @@ const DataManager = {
         }).join('');
     },
 
-            
-        
+
+
     updateImagesTable() {
         const tbody = document.getElementById('images-table-body');
         if (!appState.data.images || appState.data.images.length === 0) {
@@ -194,12 +343,14 @@ const DataManager = {
                 usageClass = 'tag-danger';
             }
 
+            const imageSrc = Utils.getImageSrc(image.path);
+
             return `
                 <tr>
                     <td>${image.id}</td>
                     <td>
                         <img 
-                            src="file:///${image.path}" 
+                            src="${imageSrc}" 
                             class="image-preview" 
                             style="cursor: pointer;"
                             onclick="UIManager.showImageModal('${image.path.replace(/\\/g, '\\\\')}')"
@@ -207,19 +358,72 @@ const DataManager = {
                     </td>
                     <td style="max-width: 250px; word-wrap: break-word;">${Utils.truncateText(image.path)}</td>
                     <td>
-                        ${(image.manual_tags || '').split(',').filter(tag => tag.trim()).map(tag => 
-                            `<span class="tag">${tag.trim()}</span>`
-                        ).join('')}
+                        ${(image.manual_tags || '').split(',').filter(tag => tag.trim()).map(tag =>
+                `<span class="tag">${tag.trim()}</span>`
+            ).join('')}
                     </td>
                     <td>
                         <span class="tag ${usageClass}">${usageCount}</span>
                     </td>
                     <td class="actions">
+                        <button class="btn btn-sm btn-icon btn-info" onclick="UIManager.showImageTagsEditModal(${image.id}, '${(image.manual_tags || '').replace(/'/g, "\\'")}')" title="Editar etiquetas">
+                            <i class="fas fa-tags"></i>
+                        </button>
                         <button class="btn btn-sm btn-icon btn-danger" onclick="DataManager.deleteImage(${image.id})">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
                 </tr>
+            `;
+        }).join('');
+    },
+
+    // NUEVA FUNCIÓN: Actualizar galería de imágenes
+    updateImageGallery() {
+        const gallery = document.getElementById('image-gallery');
+        if (!appState.data.images || appState.data.images.length === 0) {
+            gallery.innerHTML = '<div class="gallery-loading"><i class="fas fa-images"></i><p>No hay imágenes disponibles</p></div>';
+            return;
+        }
+
+        gallery.innerHTML = appState.data.images.map(image => {
+            const usageCount = image.usage_count || 0;
+            let usageClass = '';
+            if (usageCount >= 7 && usageCount < 10) {
+                usageClass = 'tag-warning';
+            } else if (usageCount >= 10) {
+                usageClass = 'tag-danger';
+            }
+
+            const tags = (image.manual_tags || '').split(',').filter(tag => tag.trim());
+            const filename = image.path.split('\\').pop().split('/').pop();
+
+            const imageSrc = Utils.getImageSrc(image.path);
+
+            return `
+                <div class="gallery-item" data-image-id="${image.id}">
+                    <img 
+                        src="${imageSrc}" 
+                        class="gallery-item-image"
+                        onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22><rect width=%22100%25%22 height=%22100%25%22 fill=%22%23ccc%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22>IMG</text></svg>'">
+                    <div class="gallery-item-actions">
+                        <button class="gallery-item-action view" onclick="UIManager.showImageModal('${image.path.replace(/\\/g, '\\\\')}')" title="Ver imagen">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="gallery-item-action delete" onclick="DataManager.deleteImage(${image.id})" title="Eliminar imagen">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <div class="gallery-item-info">
+                        <div class="gallery-item-tags">
+                            ${tags.map(tag => `<span class="tag">${tag.trim()}</span>`).join('')}
+                        </div>
+                        <div class="gallery-item-usage">
+                            <span>${filename}</span>
+                            <span class="tag ${usageClass}">${usageCount} usos</span>
+                        </div>
+                    </div>
+                </div>
             `;
         }).join('');
     },
@@ -239,9 +443,9 @@ const DataManager = {
                     <a href="${group.url}" target="_blank" style="color: var(--primary);">${Utils.truncateText(group.url)}</a>
                 </td>
                 <td>
-                    ${(group.tags || '').split(',').filter(tag => tag.trim()).map(tag => 
-                        `<span class="tag">${tag.trim()}</span>`
-                    ).join('')}
+                    ${(group.tags || '').split(',').filter(tag => tag.trim()).map(tag =>
+            `<span class="tag">${tag.trim()}</span>`
+        ).join('')}
                 </td>
                 <td class="actions">
                     <button class="btn btn-sm btn-icon btn-danger" onclick="DataManager.deleteGroup(${group.id})">
@@ -288,17 +492,17 @@ const DataManager = {
             let statusClass = 'tag-warning';
             if (post.status === 'completed') statusClass = 'tag-success';
             else if (post.status === 'failed') statusClass = 'tag-danger';
-            
+
             return `
                 <tr>
                     <td>${post.id}</td>
                     <td>${post.page_name || 'N/A'}</td>
                     <td style="max-width: 250px; word-wrap: break-word;">${Utils.truncateText(post.text_content)}</td>
                     <td>
-                        ${post.image_path ? 
-                            `<img src="file:///${post.image_path}" class="image-preview" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2250%22 height=%2250%22><rect width=%22100%25%22 height=%22100%25%22 fill=%22%23ccc%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22>IMG</text></svg>'">` : 
-                            'Sin imagen'
-                        }
+                        ${post.image_path ?
+                    `<img src="file:///${post.image_path}" class="image-preview" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2250%22 height=%2250%22><rect width=%22100%25%22 height=%22100%25%22 fill=%22%23ccc%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22>IMG</text></svg>'">` :
+                    'Sin imagen'
+                }
                     </td>
                     <td>${Utils.formatDateTime(post.publish_at)}</td>
                     <td><span class="tag ${statusClass}">${post.status}</span></td>
@@ -338,7 +542,7 @@ const DataManager = {
     updateStatus(connected) {
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
-        
+
         if (connected) {
             statusDot.className = 'status-dot active';
             statusText.textContent = 'Conectado';
@@ -351,7 +555,7 @@ const DataManager = {
     // Métodos para eliminar elementos
     async deleteText(id) {
         if (!confirm('¿Estás seguro de que deseas eliminar este texto?')) return;
-        
+
         try {
             Utils.showLoading(true);
             const updatedTexts = await eel.delete_text(id)();
@@ -369,11 +573,11 @@ const DataManager = {
 
     async deleteImage(id) {
         if (!confirm('¿Estás seguro de que deseas eliminar esta imagen?')) return;
-        
+
         try {
             Utils.showLoading(true);
             const response = await eel.delete_image(id)();
-            
+
             if (response && response.success) {
                 // Actualizar la lista de imágenes con la respuesta del servidor
                 appState.data.images = response.images || [];
@@ -395,7 +599,7 @@ const DataManager = {
 
     async deleteGroup(id) {
         if (!confirm('¿Estás seguro de que deseas eliminar este grupo?')) return;
-        
+
         try {
             Utils.showLoading(true);
             const updatedGroups = await eel.delete_group(id)();
@@ -413,7 +617,7 @@ const DataManager = {
 
     async deletePage(id) {
         if (!confirm('¿Estás seguro de que deseas eliminar esta página?')) return;
-        
+
         try {
             Utils.showLoading(true);
             const updatedPages = await eel.delete_page(id)();
@@ -432,7 +636,7 @@ const DataManager = {
 
     async deleteScheduledPost(id) {
         if (!confirm('¿Estás seguro de que deseas eliminar esta publicación programada?')) return;
-        
+
         try {
             Utils.showLoading(true);
             const updatedScheduled = await eel.delete_scheduled_post(id)();
@@ -459,9 +663,9 @@ const DataManager = {
         tbody.innerHTML = logs.map(log => {
             const statusClass = log.status === 'Success' ? 'tag-success' : 'tag-danger';
             const statusText = log.status === 'Success' ? 'Completado' : 'Fallido';
-            
+
             const actionText = log.target_type === 'group' ? 'Publicación en grupo' : 'Publicación en página';
-            
+
             let detailsHtml = 'N/A';
             if (log.published_post_url) {
                 detailsHtml = `<a href="${log.published_post_url}" target="_blank" style="color: var(--primary);">Ver Publicación</a>`;
@@ -481,6 +685,73 @@ const DataManager = {
                 </tr>
             `;
         }).join('');
+    },
+
+    // NUEVA FUNCIÓN: Actualizar vista previa de publicación
+    updatePublicationPreview() {
+        const previewSection = document.getElementById('publication-preview-section');
+        const previewText = document.getElementById('preview-text');
+        const previewImage = document.getElementById('preview-image');
+        const previewImageSrc = document.getElementById('preview-image-src');
+
+        // Obtener el tipo de publicación seleccionado
+        const publicationType = document.querySelector('input[name="publication-type"]:checked')?.value;
+
+        if (publicationType === 'text-and-image') {
+            previewSection.style.display = 'block';
+
+            // Buscar un par de texto e imagen coherente
+            const coherentPair = this.findCoherentPair();
+            if (coherentPair) {
+                previewText.textContent = coherentPair.text.content;
+                if (coherentPair.image) {
+                    previewImage.style.display = 'block';
+                    previewImageSrc.src = Utils.getImageSrc(coherentPair.image.path);
+                } else {
+                    previewImage.style.display = 'none';
+                }
+            } else {
+                previewText.textContent = 'No se encontró contenido coherente disponible';
+                previewImage.style.display = 'none';
+            }
+        } else {
+            previewSection.style.display = 'none';
+        }
+    },
+
+    // NUEVA FUNCIÓN: Encontrar par coherente de texto e imagen
+    findCoherentPair() {
+        if (!appState.data.texts || !appState.data.images) {
+            return null;
+        }
+
+        // Buscar una imagen disponible
+        const availableImages = appState.data.images.filter(img => {
+            const usageCount = img.usage_count || 0;
+            return usageCount < 10; // Límite de uso
+        });
+
+        if (availableImages.length === 0) {
+            return null;
+        }
+
+        const selectedImage = availableImages[0];
+        const imageTags = (selectedImage.manual_tags || '').split(',').map(tag => tag.trim().toLowerCase());
+
+        // Buscar texto coherente
+        const coherentTexts = appState.data.texts.filter(text => {
+            const textTags = (text.ai_tags || '').split(',').map(tag => tag.trim().toLowerCase());
+            return textTags.some(tag => imageTags.includes(tag));
+        });
+
+        if (coherentTexts.length === 0) {
+            return null;
+        }
+
+        return {
+            text: coherentTexts[0],
+            image: selectedImage
+        };
     },
 };
 
@@ -665,7 +936,7 @@ const SchedulerManager = {
         try {
             Utils.showLoading(true);
             const suggestion = await eel.get_content_suggestion(pageId, "")();
-            
+
             if (suggestion.success) {
                 document.getElementById('schedule-text-content').value = suggestion.text.content;
                 document.getElementById('schedule-image-select').value = suggestion.image.id;
@@ -716,13 +987,13 @@ const SchedulerManager = {
             appState.data.scheduled_posts = updatedScheduled;
             DataManager.updateScheduledPostsTable();
             DataManager.updateStats();
-            
+
             // Limpiar formulario
             document.getElementById('schedule-page-select').value = '';
             document.getElementById('schedule-datetime').value = '';
             document.getElementById('schedule-text-content').value = '';
             document.getElementById('schedule-image-select').value = '';
-            
+
             Utils.showNotification('Publicación programada', 'La publicación se programó correctamente', 'success');
         } catch (error) {
             console.error('Error programando publicación:', error);
@@ -733,22 +1004,83 @@ const SchedulerManager = {
     }
 };
 
+// Manejo de galería de imágenes
+const GalleryManager = {
+    // Filtrar imágenes por etiquetas
+    filterImages(filterText) {
+        const gallery = document.getElementById('image-gallery');
+        const items = gallery.querySelectorAll('.gallery-item');
+
+        if (!filterText.trim()) {
+            items.forEach(item => item.style.display = 'block');
+            return;
+        }
+
+        const filterTags = filterText.toLowerCase().split(',').map(tag => tag.trim());
+
+        items.forEach(item => {
+            const tags = Array.from(item.querySelectorAll('.gallery-item-tags .tag'))
+                .map(tag => tag.textContent.toLowerCase());
+
+            const matches = filterTags.some(filterTag =>
+                tags.some(tag => tag.includes(filterTag))
+            );
+
+            item.style.display = matches ? 'block' : 'none';
+        });
+    },
+
+    // Ordenar imágenes
+    sortImages(sortBy) {
+        const gallery = document.getElementById('image-gallery');
+        const items = Array.from(gallery.querySelectorAll('.gallery-item'));
+
+        items.sort((a, b) => {
+            switch (sortBy) {
+                case 'newest':
+                    return parseInt(b.dataset.imageId) - parseInt(a.dataset.imageId);
+                case 'oldest':
+                    return parseInt(a.dataset.imageId) - parseInt(b.dataset.imageId);
+                case 'usage':
+                    const aUsage = parseInt(a.querySelector('.gallery-item-usage .tag').textContent) || 0;
+                    const bUsage = parseInt(b.querySelector('.gallery-item-usage .tag').textContent) || 0;
+                    return bUsage - aUsage;
+                case 'name':
+                    const aName = a.querySelector('.gallery-item-usage span').textContent;
+                    const bName = b.querySelector('.gallery-item-usage span').textContent;
+                    return aName.localeCompare(bName);
+                default:
+                    return 0;
+            }
+        });
+
+        // Reorganizar elementos en el DOM
+        items.forEach(item => gallery.appendChild(item));
+    }
+};
+
 // Manejo de publicación en grupos
 const GroupPublishingManager = {
     // Iniciar publicación en grupos
     async startGroupPublishing() {
         const groupTags = document.getElementById('group-tags-input').value.trim();
         const contentTags = document.getElementById('content-tags-input').value.trim();
+        const publicationType = document.querySelector('input[name="publication-type"]:checked')?.value;
 
         if (!groupTags || !contentTags) {
             Utils.showNotification('Error', 'Por favor completa las etiquetas de grupos y contenido', 'warning');
             return;
         }
 
+        // Añadir información del tipo de publicación a las etiquetas
+        const enhancedContentTags = publicationType === 'text-only'
+            ? `${contentTags},text-only`
+            : `${contentTags},text-and-image`;
+
         try {
             Utils.showLoading(true);
-            const result = await eel.start_group_publishing_process(groupTags, contentTags)();
-            
+            const result = await eel.start_group_publishing_process(groupTags, enhancedContentTags)();
+
             if (result.success) {
                 appState.ui.isGroupPublishing = true;
                 this.updatePublishingUI(true);
@@ -769,7 +1101,7 @@ const GroupPublishingManager = {
         try {
             Utils.showLoading(true);
             const result = await eel.stop_group_publishing_process()();
-            
+
             if (result.success) {
                 appState.ui.isGroupPublishing = false;
                 this.updatePublishingUI(false);
@@ -847,19 +1179,19 @@ const UIManager = {
         navLinks.forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
-                
+
                 const tabId = link.dataset.tab;
-                
+
                 // Actualizar enlaces activos
                 navLinks.forEach(l => l.classList.remove('active'));
                 link.classList.add('active');
-                
+
                 // Actualizar contenido activo
                 tabContents.forEach(t => t.classList.remove('active'));
                 document.getElementById(tabId).classList.add('active');
-                
+
                 appState.ui.currentTab = tabId;
-                
+
                 // Cerrar menú móvil
                 if (window.innerWidth < 992) {
                     document.getElementById('sidebar').classList.remove('active');
@@ -872,21 +1204,21 @@ const UIManager = {
     setupTheme() {
         const themeToggle = document.getElementById('theme-toggle');
         const currentTheme = localStorage.getItem('theme') || 'dark';
-        
+
         document.body.setAttribute('data-theme', currentTheme);
-        themeToggle.innerHTML = currentTheme === 'dark' ? 
-            '<i class="fas fa-moon"></i>' : 
+        themeToggle.innerHTML = currentTheme === 'dark' ?
+            '<i class="fas fa-moon"></i>' :
             '<i class="fas fa-sun"></i>';
-        
+
         themeToggle.addEventListener('click', () => {
             const current = document.body.getAttribute('data-theme');
             const newTheme = current === 'dark' ? 'light' : 'dark';
-            
+
             document.body.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
-            
-            themeToggle.innerHTML = newTheme === 'dark' ? 
-                '<i class="fas fa-moon"></i>' : 
+
+            themeToggle.innerHTML = newTheme === 'dark' ?
+                '<i class="fas fa-moon"></i>' :
                 '<i class="fas fa-sun"></i>';
         });
     },
@@ -902,8 +1234,8 @@ const UIManager = {
 
         // Cerrar menú al hacer clic fuera
         document.addEventListener('click', (e) => {
-            if (window.innerWidth < 992 && 
-                !sidebar.contains(e.target) && 
+            if (window.innerWidth < 992 &&
+                !sidebar.contains(e.target) &&
                 !mobileToggle.contains(e.target)) {
                 sidebar.classList.remove('active');
             }
@@ -938,7 +1270,7 @@ const UIManager = {
 
         // Botones de publicación
         document.getElementById('start-group-publishing').addEventListener('click', () => GroupPublishingManager.startGroupPublishing());
-        document.getElementById('stop-group-publishing').addEventListener('click', GroupPublishingManager.stopGroupPublishing);
+        document.getElementById('stop-group-publishing').addEventListener('click', () => GroupPublishingManager.stopGroupPublishing());
 
         // Botones de actualización
         document.getElementById('refresh-content').addEventListener('click', DataManager.loadInitialData);
@@ -953,6 +1285,62 @@ const UIManager = {
             if (e.key === 'Enter' && e.ctrlKey) {
                 ContentManager.addManualText();
             }
+        });
+
+        // NUEVOS EVENT LISTENERS PARA LAS MEJORAS
+
+        // Opciones de publicación
+        document.querySelectorAll('input[name="publication-type"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                DataManager.updatePublicationPreview();
+            });
+        });
+
+        // Controles de galería
+        document.getElementById('toggle-gallery-view')?.addEventListener('click', () => {
+            document.getElementById('image-gallery').style.display = 'grid';
+            document.getElementById('images-table-container').style.display = 'none';
+            document.getElementById('toggle-gallery-view').classList.add('active');
+            document.getElementById('toggle-table-view').classList.remove('active');
+        });
+
+        document.getElementById('toggle-table-view')?.addEventListener('click', () => {
+            document.getElementById('image-gallery').style.display = 'none';
+            document.getElementById('images-table-container').style.display = 'block';
+            document.getElementById('toggle-table-view').classList.add('active');
+            document.getElementById('toggle-gallery-view').classList.remove('active');
+        });
+
+        // Inicializar vista de galería por defecto
+        document.getElementById('toggle-gallery-view')?.classList.add('active');
+
+        // Filtros de galería
+        document.getElementById('gallery-filter-tags')?.addEventListener('input', (e) => {
+            GalleryManager.filterImages(e.target.value);
+        });
+
+        document.getElementById('gallery-sort')?.addEventListener('change', (e) => {
+            GalleryManager.sortImages(e.target.value);
+        });
+
+        // Event listeners para sesiones
+        document.getElementById('create-session-btn')?.addEventListener('click', () => {
+            UIManager.showCreateSessionModal();
+        });
+
+        document.getElementById('create-session-form')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('session-name').value.trim();
+            const groupTags = document.getElementById('session-group-tags').value.trim();
+            const contentTags = document.getElementById('session-content-tags').value.trim();
+            const publicationType = document.querySelector('input[name="session-publication-type"]:checked')?.value;
+
+            if (!name || !groupTags || !contentTags) {
+                Utils.showNotification('Error', 'Por favor completa todos los campos', 'warning');
+                return;
+            }
+
+            SessionManager.createSession(name, groupTags, contentTags, publicationType);
         });
     },
 
@@ -978,6 +1366,84 @@ const UIManager = {
         }
     },
 
+    async updateTextTags(id) {
+        const newTags = document.getElementById('text-tags-input').value.trim();
+        if (!newTags) {
+            Utils.showNotification('Error', 'Las etiquetas no pueden estar vacías.', 'warning');
+            return;
+        }
+
+        try {
+            Utils.showLoading(true);
+            const result = await eel.update_text_tags(id, newTags)();
+            if (result.success) {
+                // Recargar datos y actualizar tabla
+                const allData = await eel.get_initial_data()();
+                appState.data = allData;
+                this.updateTextsTable();
+                UIManager.closeModal();
+                Utils.showNotification('Etiquetas actualizadas', result.message, 'success');
+            } else {
+                Utils.showNotification('Error', result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error actualizando etiquetas del texto:', error);
+            Utils.showNotification('Error', 'No se pudieron actualizar las etiquetas.', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    async updateImageTags(id) {
+        const newTags = document.getElementById('image-tags-input').value.trim();
+        if (!newTags) {
+            Utils.showNotification('Error', 'Las etiquetas no pueden estar vacías.', 'warning');
+            return;
+        }
+
+        try {
+            Utils.showLoading(true);
+            const result = await eel.update_image_tags(id, newTags)();
+            if (result.success) {
+                // Recargar datos y actualizar tabla
+                const allData = await eel.get_initial_data()();
+                appState.data = allData;
+                this.updateImagesTable();
+                UIManager.closeModal();
+                Utils.showNotification('Etiquetas actualizadas', result.message, 'success');
+            } else {
+                Utils.showNotification('Error', result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error actualizando etiquetas de la imagen:', error);
+            Utils.showNotification('Error', 'No se pudieron actualizar las etiquetas.', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    async regenerateTextTags(id) {
+        try {
+            Utils.showLoading(true);
+            const result = await eel.regenerate_text_tags(id)();
+            if (result.success) {
+                // Recargar datos y actualizar tabla
+                const allData = await eel.get_initial_data()();
+                appState.data = allData;
+                this.updateTextsTable();
+                UIManager.closeModal();
+                Utils.showNotification('Etiquetas regeneradas', result.message, 'success');
+            } else {
+                Utils.showNotification('Error', result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error regenerando etiquetas del texto:', error);
+            Utils.showNotification('Error', 'No se pudieron regenerar las etiquetas.', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
     openModal() {
         document.getElementById('generic-modal').style.display = 'block';
     },
@@ -986,10 +1452,11 @@ const UIManager = {
         document.getElementById('generic-modal').style.display = 'none';
         document.getElementById('modal-body').innerHTML = ''; // Limpiar contenido al cerrar
     },
-    
+
     showImageModal(imagePath) {
         const modalBody = document.getElementById('modal-body');
-        modalBody.innerHTML = `<img src="file:///${imagePath}" alt="Vista previa de imagen">`;
+        const imageSrc = Utils.getImageSrc(imagePath);
+        modalBody.innerHTML = `<img src="${imageSrc}" alt="Vista previa de imagen" style="max-width: 100%; height: auto;">`;
         this.openModal();
     },
 
@@ -1006,14 +1473,59 @@ const UIManager = {
         this.openModal();
     },
 
+    showTextTagsEditModal(id, currentTags) {
+        const modalBody = document.getElementById('modal-body');
+        modalBody.innerHTML = `
+            <h3 style="margin-bottom: 15px;">Editar Etiquetas del Texto</h3>
+            <div class="form-group">
+                <label for="text-tags-input">Etiquetas (separadas por comas):</label>
+                <input type="text" id="text-tags-input" class="form-control" value="${currentTags}" placeholder="ejemplo: marketing,ventas,oferta">
+                <small class="form-text text-muted">Separa las etiquetas con comas. Las etiquetas se usarán para filtrar el contenido durante la publicación.</small>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="UIManager.closeModal()">Cancelar</button>
+                <button class="btn btn-warning" onclick="DataManager.regenerateTextTags(${id})">Regenerar con IA</button>
+                <button class="btn btn-primary" onclick="DataManager.updateTextTags(${id})">Guardar Cambios</button>
+            </div>
+        `;
+        this.openModal();
+    },
+
+    showImageTagsEditModal(id, currentTags) {
+        const modalBody = document.getElementById('modal-body');
+        modalBody.innerHTML = `
+            <h3 style="margin-bottom: 15px;">Editar Etiquetas de la Imagen</h3>
+            <div class="form-group">
+                <label for="image-tags-input">Etiquetas (separadas por comas):</label>
+                <input type="text" id="image-tags-input" class="form-control" value="${currentTags}" placeholder="ejemplo: coche,ford,oferta">
+                <small class="form-text text-muted">Separa las etiquetas con comas. Las etiquetas se usarán para filtrar el contenido durante la publicación.</small>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="UIManager.closeModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="DataManager.updateImageTags(${id})">Guardar Cambios</button>
+            </div>
+        `;
+        this.openModal();
+    },
+
     // Configurar notificaciones
     setupNotifications() {
         const notification = document.getElementById('notification');
         const closeBtn = notification.querySelector('.notification-close');
-        
+
         closeBtn.addEventListener('click', () => {
             notification.classList.remove('show');
         });
+    },
+
+    // Modal para crear sesión
+    showCreateSessionModal() {
+        document.getElementById('create-session-modal').style.display = 'block';
+    },
+
+    closeCreateSessionModal() {
+        document.getElementById('create-session-modal').style.display = 'none';
+        document.getElementById('create-session-form').reset();
     }
 };
 
@@ -1021,7 +1533,7 @@ const UIManager = {
 document.addEventListener('DOMContentLoaded', () => {
     UIManager.init();
     DataManager.loadInitialData();
-    
+
     // Configurar fecha y hora mínima para el programador (ahora)
     const now = new Date();
     const localISOTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -1038,6 +1550,105 @@ window.addEventListener('unhandledrejection', (e) => {
     console.error('Promesa rechazada:', e.reason);
     Utils.showNotification('Error del sistema', 'Se ha producido un error de conexión', 'error');
 });
+
+// --- GESTOR DE SESIONES ---
+const SessionManager = {
+    // Crear nueva sesión
+    async createSession(name, groupTags, contentTags, publicationType) {
+        try {
+            Utils.showLoading(true);
+            const result = await eel.create_session(name, groupTags, contentTags, publicationType)();
+
+            if (result.success) {
+                Utils.showNotification('Sesión creada', result.message, 'success');
+                await DataManager.loadSessions();
+                UIManager.closeCreateSessionModal();
+            } else {
+                Utils.showNotification('Error', result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error creando sesión:', error);
+            Utils.showNotification('Error', 'No se pudo crear la sesión', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    // Iniciar sesión
+    async startSession(sessionId) {
+        try {
+            Utils.showLoading(true);
+            const result = await eel.start_session(sessionId)();
+
+            if (result.success) {
+                Utils.showNotification('Sesión iniciada', result.message, 'success');
+                await DataManager.loadSessions();
+            } else {
+                Utils.showNotification('Error', result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error iniciando sesión:', error);
+            Utils.showNotification('Error', 'No se pudo iniciar la sesión', 'error');
+        } finally {
+            Utils.showLoading(false);
+        }
+    },
+
+    // Pausar sesión
+    async pauseSession(sessionId) {
+        try {
+            const result = await eel.pause_session(sessionId)();
+
+            if (result.success) {
+                Utils.showNotification('Sesión pausada', result.message, 'success');
+                await DataManager.loadSessions();
+            } else {
+                Utils.showNotification('Error', result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error pausando sesión:', error);
+            Utils.showNotification('Error', 'No se pudo pausar la sesión', 'error');
+        }
+    },
+
+    // Detener sesión
+    async stopSession(sessionId) {
+        try {
+            const result = await eel.stop_session(sessionId)();
+
+            if (result.success) {
+                Utils.showNotification('Sesión detenida', result.message, 'success');
+                await DataManager.loadSessions();
+            } else {
+                Utils.showNotification('Error', result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error deteniendo sesión:', error);
+            Utils.showNotification('Error', 'No se pudo detener la sesión', 'error');
+        }
+    },
+
+    // Eliminar sesión
+    async deleteSession(sessionId) {
+        if (!confirm('¿Estás seguro de que quieres eliminar esta sesión? Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        try {
+            const result = await eel.delete_session(sessionId)();
+
+            if (result.success) {
+                Utils.showNotification('Sesión eliminada', result.message, 'success');
+                await DataManager.loadSessions();
+            } else {
+                Utils.showNotification('Error', result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error eliminando sesión:', error);
+            Utils.showNotification('Error', 'No se pudo eliminar la sesión', 'error');
+        }
+    }
+};
 
 // Exponer función log_to_panel correctamente
 eel.expose(log_to_panel);
@@ -1101,10 +1712,10 @@ eel.expose(update_publishing_status);
 function update_publishing_status(isPublishing) {
     // Registra en la consola del navegador para depuración
     console.log(`Señal desde Python: Estado de publicación es ahora ${isPublishing}`);
-    
+
     // Actualiza el estado global de la aplicación en JavaScript
     appState.ui.isGroupPublishing = isPublishing;
-    
+
     // Llama a la función del objeto GroupPublishingManager que se encarga de la lógica visual
     GroupPublishingManager.updatePublishingUI(isPublishing);
 }
@@ -1120,7 +1731,7 @@ eel.expose(update_data_view);
 function update_data_view(dataType, data) {
     // Registra en la consola del navegador para depuración
     console.log(`Recibiendo actualización de datos desde Python para: ${dataType}`);
-    
+
     // Primero, actualiza el array de datos en el estado global de la aplicación
     if (appState.data.hasOwnProperty(dataType)) {
         appState.data[dataType] = data;
@@ -1130,7 +1741,7 @@ function update_data_view(dataType, data) {
     }
 
     // Luego, llama a la función específica que redibuja esa parte de la UI
-    switch(dataType) {
+    switch (dataType) {
         case 'texts':
             DataManager.updateTextsTable();
             Utils.showNotification('Textos Actualizados', 'La lista de textos ha sido refrescada.', 'info');
@@ -1145,7 +1756,7 @@ function update_data_view(dataType, data) {
         //     DataManager.updateGroupsTable();
         //     break;
     }
-    
+
     // Finalmente, actualiza los contadores y estadísticas generales
     DataManager.updateStats();
 }

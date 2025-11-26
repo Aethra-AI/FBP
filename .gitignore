@@ -1,0 +1,139 @@
+# ====================================
+# SWIFTLY - GITIGNORE
+# Archivos que NO se deben subir a GitHub
+# ====================================
+
+# Python
+# ------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+# -------------------
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+# ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+# ----
+*.log
+logs/
+*.out
+
+# Base de Datos
+# -------------
+# IMPORTANTE: Tu base de datos contiene TODOS tus datos
+# NO la subas a GitHub a menos que sea un respaldo intencional
+*.db
+*.sqlite
+*.sqlite3
+swiftly.db
+marketing.db
+
+# Archivos de Usuario (Contenido)
+# --------------------------------
+# NO subir tu contenido personal (textos, imágenes, etc.)
+uploaded_images/
+images/
+screenshots/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.webp
+
+# Configuración Privada
+# ---------------------
+# NO subir claves API, contraseñas, etc.
+.env
+config.ini
+secrets.json
+credentials.json
+
+# Perfiles de Chrome/Selenium
+# ---------------------------
+# NO subir sesiones de navegador
+chrome_profiles/
+gui_profile/
+selenium_profiles/
+*.profile
+
+# Archivos Temporales
+# -------------------
+tmp/
+temp/
+*.tmp
+*.cache
+debug_*.png
+screenshot_*.png
+
+# Sistema Operativo
+# -----------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backups
+# -------
+*.bak
+*.backup
+*~
+
+# ====================================
+# NOTAS IMPORTANTES
+# ====================================
+# 
+# ARCHIVOS QUE SÍ DEBES SUBIR:
+# - Todos los archivos .py (código)
+# - Todos los archivos .js (frontend)
+# - Todos los archivos .css (estilos)
+# - Todos los archivos .html (interfaz)
+# - Todos los archivos .md (documentación)
+# - requirements.txt (dependencias)
+# - README.md
+# - LICENSE (si quieres)
+#
+# ARCHIVOS QUE NO DEBES SUBIR:
+# - Base de datos (*.db)
+# - Imágenes de contenido (uploaded_images/)
+# - Claves API (.env)
+# - Perfiles de Chrome (chrome_profiles/)
+# - __pycache__ y archivos compilados
+# - Logs y temporales
+#
+# PARA NUEVA PC:
+# 1. Clonar repositorio: git clone <tu-repo>
+# 2. Instalar dependencias: pip install -r requirements.txt
+# 3. Crear archivo .env con tu API key
+# 4. Ejecutar: python main.py
+# 5. ¡Listo para usar!

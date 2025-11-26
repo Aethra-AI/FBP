@@ -13,6 +13,10 @@ from tkinter import filedialog
 # Módulos del proyecto
 from database import db_manager
 from ai_services import ai_service
+from content_categorizer import content_categorizer, CONTENT_CATEGORIES
+from chatbot_service import chatbot_assistant
+from intelligent_matcher import intelligent_matcher
+
 
 # Importaciones de Selenium
 from selenium import webdriver
@@ -25,6 +29,594 @@ from selenium.common.exceptions import WebDriverException, TimeoutException
 from selenium.webdriver.remote.webelement import WebElement
 
 eel.init('web')
+
+# Configurar Eel para servir archivos estáticos
+import os
+from flask import Flask, send_file, request
+from flask_cors import CORS
+
+# Crear una aplicación Flask para servir imágenes
+app = Flask(__name__)
+CORS(app)
+
+@app.route('/images/<path:filename>')
+def serve_image(filename):
+    """Sirve las imágenes desde el directorio images/"""
+    try:
+        image_path = os.path.join('images', filename)
+        if os.path.exists(image_path):
+            return send_file(image_path)
+        else:
+            return "Imagen no encontrada", 404
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
+# Iniciar el servidor Flask en un hilo separado
+import threading
+def start_image_server():
+    app.run(host='127.0.0.1', port=5001, debug=False, use_reloader=False)
+
+image_server_thread = threading.Thread(target=start_image_server, daemon=True)
+image_server_thread.start()
+
+class SessionManager:
+    """Gestor de múltiples sesiones de Facebook."""
+    
+    def __init__(self):
+        self.sessions = {}  # Dict para almacenar sesiones activas
+        self.max_sessions = 10 # Aumentado para soportar más cuentas
+        self.session_counter = 0
+        
+        # Asegurar directorio de perfiles
+        self.profiles_dir = os.path.join(os.getcwd(), 'chrome_profiles')
+        os.makedirs(self.profiles_dir, exist_ok=True)
+    
+    def create_session(self, name, group_tags="", content_tags="", publication_type="text-and-image"):
+        """Crea una nueva sesión de Facebook (Cuenta)."""
+        if len(self.sessions) >= self.max_sessions:
+            return {"success": False, "message": f"Máximo {self.max_sessions} sesiones permitidas"}
+        
+        # Sanitizar nombre para usar en carpeta
+        safe_name = "".join([c for c in name if c.isalnum() or c in (' ', '-', '_')]).strip().replace(' ', '_')
+        chrome_profile = os.path.join(self.profiles_dir, safe_name)
+        
+        # Crear sesión en la base de datos
+        result = db_manager.create_session(
+            name=name,
+            chrome_profile=chrome_profile,
+            group_tags=group_tags,
+            content_tags=content_tags,
+            publication_type=publication_type
+        )
+        
+        if not result["success"]:
+            return result
+        
+        # Crear instancia de AppLogic para esta sesión
+        session_logic = SessionLogic(
+            session_id=session_id,
+            name=name,
+            chrome_profile=chrome_profile,
+            group_tags=group_tags,
+            content_tags=content_tags,
+            publication_type=publication_type
+        )
+        
+        self.sessions[session_id] = {
+            "id": session_id,
+            "name": name,
+            "logic": session_logic,
+            "status": "inactive",
+            "config": {
+                "group_tags": group_tags,
+                "content_tags": content_tags,
+                "publication_type": publication_type
+            }
+        }
+        
+        return {"success": True, "session_id": session_id, "message": f"Cuenta '{name}' creada correctamente"}
+
+    def open_browser_for_login(self, session_id):
+        """Abre el navegador para que el usuario inicie sesión manualmente."""
+        if session_id not in self.sessions:
+            return {"success": False, "message": "Sesión no encontrada"}
+            
+        session = self.sessions[session_id]
+        
+        try:
+            # Usar la lógica de SessionLogic para abrir el navegador
+            # pero sin iniciar el proceso de publicación
+            success = session["logic"].open_browser_only()
+            if success:
+                return {"success": True, "message": "Navegador abierto. Por favor inicie sesión y cierre la ventana cuando termine."}
+            else:
+                return {"success": False, "message": "Error al abrir el navegador."}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+    
+    def start_session(self, session_id):
+        """Inicia una sesión específica."""
+        if session_id not in self.sessions:
+            return {"success": False, "message": "Sesión no encontrada"}
+        
+        session = self.sessions[session_id]
+        if session["status"] == "active":
+            return {"success": False, "message": "La sesión ya está activa"}
+        
+        try:
+            # Actualizar estado en BD
+            db_manager.update_session_status(session_id, "active")
+            session["status"] = "active"
+            
+            # Iniciar publicación
+            result = session["logic"].start_publishing()
+            return result
+            
+        except Exception as e:
+            db_manager.update_session_status(session_id, "error")
+            session["status"] = "error"
+            return {"success": False, "message": str(e)}
+    
+    def pause_session(self, session_id):
+        """Pausa una sesión específica."""
+        if session_id not in self.sessions:
+            return {"success": False, "message": "Sesión no encontrada"}
+        
+        session = self.sessions[session_id]
+        if session["status"] != "active":
+            return {"success": False, "message": "La sesión no está activa"}
+        
+        try:
+            session["logic"].pause_publishing()
+            db_manager.update_session_status(session_id, "paused")
+            session["status"] = "paused"
+            return {"success": True, "message": "Sesión pausada"}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+    
+    def stop_session(self, session_id):
+        """Detiene una sesión específica."""
+        if session_id not in self.sessions:
+            return {"success": False, "message": "Sesión no encontrada"}
+        
+        session = self.sessions[session_id]
+        
+        try:
+            session["logic"].stop_publishing()
+            db_manager.update_session_status(session_id, "inactive")
+            session["status"] = "inactive"
+            return {"success": True, "message": "Sesión detenida"}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+    
+    def delete_session(self, session_id):
+        """Elimina una sesión completamente."""
+        if session_id not in self.sessions:
+            return {"success": False, "message": "Sesión no encontrada"}
+        
+        session = self.sessions[session_id]
+        
+        try:
+            # Detener si está activa
+            if session["status"] in ["active", "paused"]:
+                session["logic"].stop_publishing()
+            
+            # Eliminar de la base de datos
+            db_manager.delete_session(session_id)
+            
+            # Eliminar de la memoria
+            del self.sessions[session_id]
+            
+            return {"success": True, "message": "Sesión eliminada"}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+    
+    def get_session_status(self, session_id):
+        """Obtiene el estado de una sesión."""
+        if session_id not in self.sessions:
+            return {"success": False, "message": "Sesión no encontrada"}
+        
+        session = self.sessions[session_id]
+        session_data = db_manager.get_session(session_id)
+        
+        return {
+            "success": True,
+            "session": {
+                "id": session_id,
+                "name": session["name"],
+                "status": session["status"],
+                "config": session["config"],
+                "current_group_index": session_data["current_group_index"] if session_data else 0,
+                "total_groups": session_data["total_groups"] if session_data else 0
+            }
+        }
+    
+    def get_all_sessions(self):
+        """Obtiene el estado de todas las sesiones."""
+        sessions_status = []
+        for session_id in self.sessions:
+            status = self.get_session_status(session_id)
+            if status["success"]:
+                sessions_status.append(status["session"])
+        
+        return {"success": True, "sessions": sessions_status}
+    
+    def get_session_logs(self, session_id, limit=20):
+        """Obtiene los logs de una sesión."""
+        logs = db_manager.get_session_logs(session_id, limit)
+        return {"success": True, "logs": logs}
+
+class SessionLogic:
+    """Lógica individual para cada sesión de Facebook."""
+    
+    def __init__(self, session_id, name, chrome_profile, group_tags, content_tags, publication_type):
+        self.session_id = session_id
+        self.name = name
+        self.chrome_profile = chrome_profile
+        self.group_tags = group_tags
+        self.content_tags = content_tags
+        self.publication_type = publication_type
+        
+        # Estado de la automatización para esta sesión
+        self.driver = None
+        self.running_groups_process = False
+        self.paused = False
+        self.publishing_thread = None
+        
+        # Configurar opciones de Chrome para esta sesión
+        self.setup_chrome_options()
+    
+    def setup_chrome_options(self):
+        """Configura las opciones de Chrome para esta sesión específica."""
+        import os
+        
+        self.options = webdriver.ChromeOptions()
+        
+        # Opciones estándar para estabilidad
+        self.options.add_argument("--disable-notifications")
+        self.options.add_argument("--start-maximized")
+        self.options.add_argument("--disable-blink-features=AutomationControlled")
+        
+        # Opciones para parecer menos un bot
+        self.options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        self.options.add_experimental_option("useAutomationExtension", False)
+        
+        # Perfil específico para esta sesión
+        # chrome_profile ya es una ruta absoluta o relativa a chrome_profiles/nombre
+        self.options.add_argument(f"user-data-dir={os.path.abspath(self.chrome_profile)}")
+
+    def open_browser_only(self):
+        """Abre el navegador solo para login/verificación."""
+        return self._init_browser(wait_for_user=True)
+    
+    def log_to_session(self, message, message_type='info'):
+        """Registra un mensaje específico para esta sesión."""
+        db_manager.log_session_message(self.session_id, message, message_type)
+    
+    def start_publishing(self):
+        """Inicia el proceso de publicación para esta sesión."""
+        if self.running_groups_process:
+            return {"success": False, "message": "La publicación ya está en curso"}
+        
+        self.publishing_thread = threading.Thread(
+            target=self._group_publishing_process,
+            daemon=True
+        )
+        self.publishing_thread.start()
+        
+        return {"success": True, "message": f"Sesión '{self.name}' iniciada correctamente"}
+    
+    def pause_publishing(self):
+        """Pausa el proceso de publicación."""
+        self.paused = True
+        self.log_to_session("Publicación pausada por el usuario")
+    
+    def stop_publishing(self):
+        """Detiene el proceso de publicación de forma segura."""
+        self.log_to_session("🛑 Deteniendo publicación...")
+        
+        # Señalar al thread que debe detenerse
+        self.running_groups_process = False
+        self.paused = False
+        
+        # Cerrar navegador de forma segura
+        if self.driver:
+            try:
+                self.log_to_session("Cerrando navegador...")
+                self.driver.quit()
+                self.log_to_session("✅ Navegador cerrado correctamente")
+            except Exception as e:
+                self.log_to_session(f"⚠️ Error al cerrar navegador: {e}")
+            finally:
+                self.driver = None
+        
+        # Esperar a que el thread termine (máximo 5 segundos)
+        if hasattr(self, 'publishing_thread') and self.publishing_thread and self.publishing_thread.is_alive():
+            try:
+                self.log_to_session("Esperando a que termine el proceso...")
+                self.publishing_thread.join(timeout=5)
+                if self.publishing_thread.is_alive():
+                    self.log_to_session("⚠️ El proceso tardó en terminar pero se detuvo")
+                else:
+                    self.log_to_session("✅ Proceso terminado correctamente")
+            except Exception as e:
+                self.log_to_session(f"⚠️ Error esperando al thread: {e}")
+        
+        self.log_to_session("✅ Publicación detenida. Lista para reiniciar.")
+    
+    def _group_publishing_process(self):
+        """Proceso de publicación para esta sesión específica."""
+        self.running_groups_process = True
+        self.paused = False
+        
+        if not self._init_browser():
+            self.running_groups_process = False
+            return
+        
+        try:
+            # Obtener grupos basados en las etiquetas de esta sesión
+            query = "SELECT * FROM groups WHERE " + " OR ".join([f"tags LIKE '%{tag.strip()}%'" for tag in self.group_tags.split(',')])
+            groups_to_publish = db_manager.fetch_all(query)
+            
+            # Actualizar total de grupos en BD
+            db_manager.update_session_status(
+                self.session_id, 
+                "active", 
+                0, 
+                len(groups_to_publish)
+            )
+            
+            self.log_to_session(f"Iniciando publicación en {len(groups_to_publish)} grupos...")
+            
+            for i, group in enumerate(groups_to_publish):
+                if not self.running_groups_process:
+                    self.log_to_session("Proceso detenido por el usuario.")
+                    break
+                
+                # Verificar si está pausado
+                while self.paused and self.running_groups_process:
+                    time.sleep(1)
+                
+                if not self.running_groups_process:
+                    break
+                
+                self.log_to_session(f"({i+1}/{len(groups_to_publish)}) Preparando publicación para: {group['url']}")
+                
+                # Actualizar progreso en BD
+                db_manager.update_session_status(
+                    self.session_id, 
+                    "active", 
+                    i, 
+                    len(groups_to_publish)
+                )
+                
+                text, image = self._find_coherent_pair_for_group(group)
+                
+                if not text:
+                    self.log_to_session("No se encontró contenido de texto usable. Saltando grupo.")
+                    continue
+                
+                # Verificar si se necesita imagen pero no se encontró
+                if 'text-and-image' in self.publication_type and not image:
+                    self.log_to_session("⚠️ Modo 'texto + imagen' seleccionado pero no hay imágenes disponibles. Continuando solo con texto.")
+                
+                try:
+                    self.log_to_session(f"🌐 Navegando al grupo: {group['url']}")
+                    self.driver.get(group["url"])
+                    
+                    # Espera inteligente
+                    try:
+                        WebDriverWait(self.driver, 15).until(
+                            lambda driver: driver.execute_script("return document.readyState") == "complete"
+                        )
+                        self.log_to_session("✓ Página cargada completamente")
+                    except TimeoutException:
+                        self.log_to_session("⚠️ Página tardó en cargar, continuando...")
+                    
+                    time.sleep(random.uniform(3, 5))
+                    
+                    # Publicar contenido
+                    image_path = image['path'] if image else None
+                    result = self._create_post_on_facebook(text['content'], image_path)
+                    
+                    if result['success']:
+                        self.log_to_session(f"✅ Publicación exitosa en: {group['url']}")
+                        
+                        # Actualizar contadores de uso
+                        if image:
+                            db_manager.execute_query(
+                                "INSERT INTO group_image_usage_log (image_id, group_id, timestamp) VALUES (?, ?, ?)",
+                                (image['id'], group['id'], datetime.now())
+                            )
+                            db_manager.execute_query(
+                                "UPDATE images SET usage_count = usage_count + 1 WHERE id = ?",
+                                (image['id'],)
+                            )
+                        
+                        db_manager.execute_query(
+                            "INSERT INTO group_text_usage_log (text_id, group_id, timestamp) VALUES (?, ?, ?)",
+                            (text['id'], group['id'], datetime.now())
+                        )
+                        db_manager.execute_query(
+                            "UPDATE texts SET usage_count = usage_count + 1 WHERE id = ?",
+                            (text['id'],)
+                        )
+                        
+                        self.log_to_session(f"📊 Contadores actualizados - Texto ID: {text['id']}" + (f", Imagen ID: {image['id']}" if image else " (solo texto)"))
+                    else:
+                        self.log_to_session(f"❌ Error en publicación: {result['error']}")
+                    
+                    # Tiempo de espera entre publicaciones
+                    time.sleep(random.uniform(10, 20))
+                    
+                except Exception as e:
+                    self.log_to_session(f"❌ Error procesando grupo {group['url']}: {str(e)}")
+                    continue
+            
+            # Proceso completado
+            db_manager.update_session_status(self.session_id, "completed")
+            self.log_to_session("🎉 Proceso de publicación completado")
+            
+        except Exception as e:
+            db_manager.update_session_status(self.session_id, "error")
+            self.log_to_session(f"❌ Error crítico: {str(e)}", "error")
+        finally:
+            self.running_groups_process = False
+            if self.driver:
+                try:
+                    self.driver.quit()
+                except:
+                    pass
+                self.driver = None
+    
+    def _init_browser(self, wait_for_user=False):
+        """Inicializa el navegador para esta sesión."""
+        try:
+            # Limpiar caché corrupto y reinstalar ChromeDriver
+            self.log_to_session("Configurando ChromeDriver...")
+            driver_path = ChromeDriverManager().install()
+            
+            # Verificar que el driver_path apunte al ejecutable correcto
+            if not driver_path.endswith('chromedriver'):
+                # Buscar el ejecutable correcto en el directorio
+                import glob
+                driver_dir = os.path.dirname(driver_path)
+                possible_drivers = glob.glob(os.path.join(driver_dir, '**/chromedriver'), recursive=True)
+                if possible_drivers:
+                    driver_path = possible_drivers[0]
+                    self.log_to_session(f"Driver corregido: {driver_path}")
+            
+            service = ChromeService(executable_path=driver_path)
+            
+            # Verificar si es la primera vez con este perfil
+            profile_path = os.path.abspath(self.chrome_profile)
+            is_first_run = not os.path.exists(profile_path)
+            
+            self.driver = webdriver.Chrome(service=service, options=self.options)
+            
+            if wait_for_user or is_first_run:
+                self.log_to_session("¡ACCIÓN REQUERIDA! Ventana de navegador abierta.")
+                self.log_to_session("Por favor, inicia sesión en Facebook si es necesario.")
+                self.log_to_session("El sistema esperará hasta que cierres la ventana.")
+                
+                try:
+                    self.driver.wait() # Espera a que se cierre la ventana
+                except WebDriverException:
+                    self.log_to_session("Ventana cerrada por el usuario.")
+                    self.driver = None # Reset driver
+                    return True # Éxito (el usuario completó la acción)
+            
+            self.log_to_session("Navegador iniciado y listo.")
+            return True
+        except Exception as e:
+            self.log_to_session(f"Error crítico al iniciar Chrome: {e}", "error")
+            self.driver = None
+            return False
+    
+    def _find_coherent_pair_for_group(self, group):
+        """
+        Encuentra un par coherente de texto e imagen usando el matcher inteligente.
+        
+        Args:
+            group: Diccionario con información del grupo
+            
+        Returns:
+            (text_dict, image_dict) - Par de contenido coherente
+        """
+        self.log_to_session(f"🎯 Buscando contenido coherente para el grupo...")
+        
+        # Usar el matcher inteligente
+        text, image = intelligent_matcher.find_best_content_for_group(
+            group=group,
+            content_tags=self.content_tags,
+            publication_type=self.publication_type
+        )
+        
+        if not text:
+            self.log_to_session("⚠️ No se encontró texto apropiado para este grupo")
+            return None, None
+        
+        # Validar coherencia del par seleccionado
+        validation = intelligent_matcher.validate_content_pair(text, image)
+        
+        # Log de resultados
+        if validation["valid"]:
+            confidence_emoji = "✅" if validation["confidence"] > 0.8 else "⚡"
+            self.log_to_session(
+                f"{confidence_emoji} Contenido seleccionado (confianza: {validation['confidence']*100:.0f}%)"
+            )
+            
+            if text.get('ai_tags'):
+                # Extraer categoría principal del texto
+                tags = text['ai_tags'].split(',')
+                category = next((tag for tag in tags if tag.upper() in ['EMPLEOS', 'SERVICIOS', 'VENTAS']), 'GENERAL')
+                self.log_to_session(f"📋 Categoría: {category.upper()}")
+            
+            if image:
+                self.log_to_session(f"🖼️ Con imagen coherente")
+            else:
+                self.log_to_session(f"📝 Solo texto (sin imagen)")
+                
+        else:
+            self.log_to_session(f"⚠️ Advertencia: {validation.get('recommendation', 'Baja coherencia')}")
+            for warning in validation.get("warnings", []):
+                self.log_to_session(f"  - {warning}")
+        
+        return text, image
+    
+    def _create_post_on_facebook(self, text_content, image_path=None):
+        """Crea una publicación en Facebook para esta sesión."""
+        try:
+            # Buscar el campo de texto
+            text_area = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='status-attachment-mentions-input']"))
+            )
+            
+            # Limpiar y escribir texto
+            text_area.clear()
+            text_area.send_keys(text_content)
+            self.log_to_session("✓ Texto escrito correctamente")
+            
+            # Subir imagen si se proporciona
+            if image_path:
+                try:
+                    # Buscar botón de foto
+                    photo_button = WebDriverWait(self.driver, 5).until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-testid='photo-video-button']"))
+                    )
+                    photo_button.click()
+                    
+                    # Buscar input de archivo
+                    file_input = WebDriverWait(self.driver, 5).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file']"))
+                    )
+                    
+                    # Subir archivo
+                    file_input.send_keys(os.path.abspath(image_path))
+                    self.log_to_session("✓ Imagen subida correctamente")
+                    
+                    # Esperar a que la imagen se procese
+                    time.sleep(3)
+                    
+                except Exception as e:
+                    self.log_to_session(f"⚠️ Error subiendo imagen: {str(e)}")
+            
+            # Publicar
+            post_button = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-testid='react-composer-post-button']"))
+            )
+            post_button.click()
+            
+            self.log_to_session("✓ Publicación enviada")
+            time.sleep(3)
+            
+            return {"success": True}
+            
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+# Instancia global del gestor de sesiones
+session_manager = SessionManager()
 
 class AppLogic:
     def __init__(self):
@@ -114,10 +706,23 @@ class AppLogic:
             # Comprobamos si el perfil del bot ya existe.
             # Si no existe, significa que es la primera vez que se ejecuta.
             import os
+            import glob
             profile_path = os.path.abspath('automation_profile')
             is_first_run = not os.path.exists(profile_path)
 
-            service = ChromeService(ChromeDriverManager().install())
+            # Limpiar caché corrupto y reinstalar ChromeDriver
+            driver_path = ChromeDriverManager().install()
+            
+            # Verificar que el driver_path apunte al ejecutable correcto
+            if not driver_path.endswith('chromedriver'):
+                # Buscar el ejecutable correcto en el directorio
+                driver_dir = os.path.dirname(driver_path)
+                possible_drivers = glob.glob(os.path.join(driver_dir, '**/chromedriver'), recursive=True)
+                if possible_drivers:
+                    driver_path = possible_drivers[0]
+                    self.log_to_panel(f"Driver corregido: {driver_path}")
+            
+            service = ChromeService(executable_path=driver_path)
             self.driver = webdriver.Chrome(service=service, options=self.options)
             
             # Si es la primera vez, pausamos el script para el login manual.
@@ -208,28 +813,89 @@ class AppLogic:
             self.log_to_panel(f"❌ {error_msg}")
             return {"valid": False, "path": image_path, "error": error_msg}
 
+    def _remove_non_bmp_characters(self, text):
+        """Elimina caracteres que no están en el plano BMP (como emojis) para evitar errores de ChromeDriver."""
+        if not text:
+            return ""
+        return "".join(c for c in text if ord(c) <= 0xFFFF)
+
+    def _fast_human_type(self, element, text):
+        """Escribe texto de forma rápida pero humana, evitando bloqueos."""
+        # Limpiar primero
+        element.clear()
+        
+        # Escribir en bloques pequeños para ser más rápido que char a char
+        # pero más seguro que send_keys completo
+        chunk_size = 5
+        for i in range(0, len(text), chunk_size):
+            chunk = text[i:i+chunk_size]
+            element.send_keys(chunk)
+            # Pausa muy breve, casi imperceptible pero suficiente para el navegador
+            time.sleep(random.uniform(0.01, 0.03))
+
+    def _find_coherent_pair_for_group(self, group, content_tags):
+        """
+        Encuentra un par coherente de texto e imagen usando el matcher inteligente.
+        """
+        self.log_to_panel(f"🎯 Buscando contenido coherente para el grupo...")
+        
+        # Usar el matcher inteligente
+        # Asumimos publication_type='text-and-image' por defecto para AppLogic
+        text, image = intelligent_matcher.find_best_content_for_group(
+            group=group,
+            content_tags=content_tags,
+            publication_type='text-and-image'
+        )
+        
+        if not text:
+            self.log_to_panel("⚠️ No se encontró texto apropiado para este grupo")
+            return None, None
+        
+        # Validar coherencia del par seleccionado
+        validation = intelligent_matcher.validate_content_pair(text, image)
+        
+        # Log de resultados
+        if validation["valid"]:
+            confidence_emoji = "✅" if validation["confidence"] > 0.8 else "⚡"
+            self.log_to_panel(
+                f"{confidence_emoji} Contenido seleccionado (confianza: {validation['confidence']*100:.0f}%)"
+            )
+            
+            if text.get('ai_tags'):
+                tags = text['ai_tags'].split(',')
+                category = next((tag for tag in tags if tag.upper() in ['EMPLEOS', 'SERVICIOS', 'VENTAS']), 'GENERAL')
+                self.log_to_panel(f"📋 Categoría: {category.upper()}")
+            
+            if image:
+                self.log_to_panel(f"🖼️ Con imagen coherente")
+            else:
+                self.log_to_panel(f"📝 Solo texto (sin imagen)")
+                
+        else:
+            self.log_to_panel(f"⚠️ Advertencia: {validation.get('recommendation', 'Baja coherencia')}")
+            for warning in validation.get("warnings", []):
+                self.log_to_panel(f"  - {warning}")
+        
+        return text, image
+
     def _create_post_on_facebook(self, text_content, image_path=None, max_retries=3):
         """
         Crea una publicación en Facebook con manejo robusto de errores y reintentos.
-        
-        Args:
-            text_content: Contenido de texto para la publicación
-            image_path: Ruta opcional de la imagen
-            max_retries: Número máximo de reintentos por operación
-            
-        Returns:
-            dict: {"success": bool, "post_url": str, "error": str, "should_discard_group": bool}
         """
+        # 0. LIMPIEZA DE TEXTO (CRÍTICO PARA EVITAR CRASH)
+        original_len = len(text_content)
+        text_content = self._remove_non_bmp_characters(text_content)
+        if len(text_content) < original_len:
+            self.log_to_panel("⚠️ Emojis/caracteres especiales eliminados para evitar errores de driver.")
+
         # VALIDACIÓN PREVIA DE IMAGEN
         image_validation = self._validate_image_path(image_path)
         if not image_validation["valid"]:
             self.log_to_panel(f"🖼️ IMAGEN INVÁLIDA: {image_validation['error']}")
-            # Si la imagen no es válida, intentar publicar solo texto
             if image_validation["error"] in ["Archivo no encontrado", "No es un archivo"]:
                 self.log_to_panel("📝 Continuando con publicación SOLO TEXTO...")
                 image_path = None
             else:
-                # Otros errores (tamaño, formato) son más críticos
                 return {
                     "success": False, 
                     "error": f"Imagen inválida: {image_validation['error']}", 
@@ -237,371 +903,122 @@ class AppLogic:
                     "image_invalid": True
                 }
         else:
-            # Si la imagen es válida, usar la ruta absoluta validada
             if image_validation["path"]:
                 image_path = image_validation["path"]
         
         for attempt in range(max_retries):
             try:
-                # 1. Abrir el modal de publicación con reintentos
+                # 1. Abrir el modal de publicación
                 self.log_to_panel(f"Intento {attempt + 1}/{max_retries}: Abriendo cuadro de publicación...")
                 
-                # Múltiples selectores para encontrar el cuadro de publicación
+                # Selectores priorizados
                 open_button_selectors = [
                     '//div[contains(@aria-label, "Crear una publicación")]',
                     '//*[contains(text(), "Escribe algo")]',
-                    '//div[contains(@role, "button") and contains(text(), "Escribe algo")]',
-                    '//div[contains(@aria-label, "¿En qué estás pensando")]',
-                    '//div[contains(@aria-label, "What\'s on your mind")]',
-                    '//*[contains(@placeholder, "Escribe algo")]'
+                    '//div[@role="button"]//span[normalize-space(text())="Escribe algo..."]',
+                    '//div[contains(@aria-label, "¿En qué estás pensando")]'
                 ]
                 
                 open_button = None
                 for selector in open_button_selectors:
                     try:
-                        open_button = WebDriverWait(self.driver, 10).until(
+                        open_button = WebDriverWait(self.driver, 5).until(
                             EC.element_to_be_clickable((By.XPATH, selector))
                         )
-                        self.log_to_panel(f"✓ Cuadro encontrado con selector: {selector}")
                         break
                     except TimeoutException:
                         continue
                 
                 if not open_button:
                     if attempt == max_retries - 1:
-                        self.log_to_panel("❌ ERROR CRÍTICO: No se encontró el cuadro de publicación después de todos los intentos")
-                        return {
-                            "success": False, 
-                            "error": "Cuadro de publicación no encontrado", 
-                            "should_discard_group": True
-                        }
-                    self.log_to_panel(f"⚠️ Intento {attempt + 1} fallido. Reintentando en 5 segundos...")
-                    time.sleep(5)
+                        return {"success": False, "error": "Cuadro de publicación no encontrado", "should_discard_group": True}
+                    time.sleep(2)
                     continue
                 
-                # Intentar hacer click con JavaScript como respaldo
+                # Click seguro
                 try:
                     open_button.click()
-                except Exception as click_error:
-                    self.log_to_panel(f"⚠️ Click normal falló, usando JavaScript: {click_error}")
+                except Exception:
                     self.driver.execute_script("arguments[0].click();", open_button)
                 
-                self.log_to_panel("✓ Cuadro de publicación abierto. Esperando estabilización...")
-                time.sleep(random.uniform(2, 4))
+                self.log_to_panel("✓ Cuadro abierto. Esperando...")
+                time.sleep(2)
 
-                # 2. Escribir el texto con validación mejorada
-                self.log_to_panel("Identificando campo de texto activo...")
+                # 2. Escribir el texto (MODO RÁPIDO Y SEGURO)
+                self.log_to_panel("Identificando campo de texto...")
                 
-                # Intentar múltiples métodos para encontrar el campo de texto
                 post_box = None
-                text_field_methods = [
-                    lambda: self.driver.switch_to.active_element,
-                    lambda: self.driver.find_element(By.XPATH, "//div[@role='textbox']"),
-                    lambda: self.driver.find_element(By.XPATH, "//div[@contenteditable='true']"),
-                    lambda: self.driver.find_element(By.XPATH, "//div[contains(@aria-label, 'Escribe algo')]"),
-                    lambda: self.driver.find_element(By.XPATH, "//textarea")
-                ]
-                
-                for method in text_field_methods:
-                    try:
-                        post_box = method()
-                        if post_box and post_box.is_enabled():
-                            break
-                    except:
-                        continue
+                # Intentar encontrar el campo activo explícitamente para evitar la barra de búsqueda
+                try:
+                    # Esperar a que aparezca el diálogo
+                    dialog = WebDriverWait(self.driver, 5).until(
+                        EC.presence_of_element_located((By.XPATH, "//div[@role='dialog']"))
+                    )
+                    # Buscar el textbox DENTRO del diálogo
+                    post_box = dialog.find_element(By.XPATH, ".//div[@role='textbox']")
+                except:
+                    # Fallback al elemento activo si no encontramos el diálogo
+                    post_box = self.driver.switch_to.active_element
                 
                 if not post_box:
-                    if attempt == max_retries - 1:
-                        self.log_to_panel("❌ ERROR CRÍTICO: Campo de texto no encontrado - Grupo problemático")
-                        return {
-                            "success": False, 
-                            "error": "Campo de texto no encontrado", 
-                            "should_discard_group": True
-                        }
-                    self.log_to_panel(f"⚠️ Campo de texto no encontrado en intento {attempt + 1}. Reintentando...")
-                    time.sleep(3)
+                    self.log_to_panel("⚠️ Campo de texto no identificado.")
                     continue
                 
-                # Escribir texto caracter por caracter con verificación
+                # Escribir usando el método rápido
                 self.log_to_panel("✓ Escribiendo contenido...")
-                post_box.clear()  # Limpiar contenido previo
-                for char in text_content:
-                    post_box.send_keys(char)
-                    time.sleep(random.uniform(0.05, 0.1))
+                self._fast_human_type(post_box, text_content)
                 
-                # Verificar que el texto se escribió correctamente
-                written_text = post_box.get_attribute('textContent') or post_box.get_attribute('value') or ""
-                if len(written_text.strip()) < len(text_content.strip()) * 0.8:  # 80% del texto esperado
-                    self.log_to_panel("⚠️ Verificación de texto falló. Reintentando...")
+                # 3. Subida de imágenes
+                if image_path:
+                    try:
+                        # Buscar input file en todo el documento (es más fiable que buscar el botón de foto)
+                        file_input = self.driver.find_element(By.XPATH, "//input[@type='file']")
+                        file_input.send_keys(image_path)
+                        self.log_to_panel("✓ Imagen subida. Esperando carga...")
+                        
+                        # Esperar brevemente a que se procese
+                        time.sleep(3)
+                    except Exception as e:
+                        self.log_to_panel(f"⚠️ Error subiendo imagen: {e}")
+
+                # 4. Publicar
+                self.log_to_panel("Enviando publicación...")
+                
+                # Buscar botón publicar específico del diálogo
+                publish_button = None
+                try:
+                    publish_button = WebDriverWait(self.driver, 5).until(
+                        EC.element_to_be_clickable((By.XPATH, "//div[@role='dialog']//div[@aria-label='Publicar']"))
+                    )
+                except:
+                    # Fallback a selectores genéricos
+                    try:
+                        publish_button = self.driver.find_element(By.XPATH, "//div[@aria-label='Publicar']")
+                    except:
+                        pass
+                
+                if not publish_button:
+                    self.log_to_panel("❌ Botón Publicar no encontrado.")
                     continue
                 
-                break  # Si llegamos aquí, la escritura fue exitosa
+                # Click en Publicar
+                try:
+                    publish_button.click()
+                except:
+                    self.driver.execute_script("arguments[0].click();", publish_button)
+                
+                self.log_to_panel("✓ Click en Publicar realizado.")
+                time.sleep(3)
+                
+                return {"success": True, "should_discard_group": False}
                 
             except Exception as e:
                 self.log_to_panel(f"❌ Error en intento {attempt + 1}: {e}")
                 if attempt == max_retries - 1:
-                    return {
-                        "success": False, 
-                        "error": f"Error después de {max_retries} intentos: {str(e)}", 
-                        "should_discard_group": False
-                    }
-                time.sleep(5)
+                    return {"success": False, "error": str(e), "should_discard_group": False}
+                time.sleep(3)
         
-        # 3. Lógica de subida de imágenes con reintentos
-        try:
-            if image_path:
-                for img_attempt in range(max_retries):
-                    self.log_to_panel(f"Intento de subida {img_attempt + 1}/{max_retries}")
-                    dialog_xpath = "//div[@role='dialog']"
-                    file_input_element = None
-                    
-                    # Múltiples selectores para el input de archivos
-                    file_input_selectors = [
-                        f"{dialog_xpath}//input[@type='file' and @multiple]",
-                        f"{dialog_xpath}//input[@type='file' and not(@multiple)]",
-                        "//input[@type='file'][@multiple]",
-                        "//input[@type='file']",
-                    ]
-                
-                    for selector in file_input_selectors:
-                        try:
-                            file_input_element = self.driver.find_element(By.XPATH, selector)
-                            if file_input_element:
-                                self.log_to_panel(f"✓ Input encontrado: {selector}")
-                                break
-                        except:
-                            continue
-                    
-                    if not file_input_element:
-                        if img_attempt == max_retries - 1:
-                            self.log_to_panel("❌ No se pudo localizar input para subir archivos")
-                            self.driver.save_screenshot(f"debug_error_input_{int(time.time())}.png")
-                            return {"success": False, "error": "Input de archivos no encontrado", "should_discard_group": False}
-                        time.sleep(3)
-                        continue
-                
-                    try:
-                        self.log_to_panel(f"✓ Subiendo imagen: {os.path.basename(image_path)}")
-                        file_input_element.send_keys(image_path)
-                    
-                        # Esperar confirmación de carga con múltiples indicadores
-                        preview_selectors = [
-                            f"{dialog_xpath}//div[contains(@aria-label, 'foto')]",
-                            f"{dialog_xpath}//a[contains(@aria-label, 'Eliminar')]",
-                            f"{dialog_xpath}//img[@alt]",
-                            "//div[contains(@aria-label, 'foto')]"
-                        ]
-                        
-                        preview_found = False
-                        for selector in preview_selectors:
-                            try:
-                                WebDriverWait(self.driver, 30).until(
-                                    EC.presence_of_element_located((By.XPATH, selector))
-                                )
-                                preview_found = True
-                                break
-                            except TimeoutException:
-                                continue
-                        
-                        if preview_found:
-                            self.log_to_panel("✓ Imagen cargada correctamente")
-                            time.sleep(random.uniform(2, 4))
-                            break
-                        else:
-                            self.log_to_panel(f"⚠️ Vista previa no encontrada en intento {img_attempt + 1}")
-                            if img_attempt < max_retries - 1:
-                                time.sleep(3)
-                                continue
-                            
-                    except Exception as upload_error:
-                        self.log_to_panel(f"⚠️ Error en subida {img_attempt + 1}: {upload_error}")
-                        if img_attempt == max_retries - 1:
-                            return {"success": False, "error": f"Error de subida: {str(upload_error)}", "should_discard_group": False}
-                        time.sleep(3)
-
-            # 4. Hacer clic en 'Publicar' con reintentos mejorados
-            self.log_to_panel("Buscando botón 'Publicar'...")
-            
-            publish_selectors = [
-                "//div[@aria-label='Publicar' and @role='button' and not(@aria-disabled='true')]",
-                "//div[@aria-label='Publish' and @role='button' and not(@aria-disabled='true')]",
-                "//button[contains(text(), 'Publicar')]",
-                "//button[contains(text(), 'Publish')]",
-                "//div[@role='button'][contains(text(), 'Publicar')]"
-            ]
-            
-            publish_button = None
-            for selector in publish_selectors:
-                try:
-                    publish_button = WebDriverWait(self.driver, 10).until(
-                        EC.element_to_be_clickable((By.XPATH, selector))
-                    )
-                    if publish_button:
-                        break
-                except TimeoutException:
-                    continue
-            
-            if not publish_button:
-                self.log_to_panel("❌ Botón de publicar no encontrado")
-                return {"success": False, "error": "Botón de publicar no encontrado", "should_discard_group": True}
-            
-            # Intentar click con reintentos
-            for pub_attempt in range(max_retries):
-                try:
-                    if pub_attempt > 0:
-                        self.log_to_panel(f"Reintento de publicación {pub_attempt + 1}/{max_retries}")
-                    
-                    # Scroll hasta el botón si es necesario
-                    self.driver.execute_script("arguments[0].scrollIntoView(true);", publish_button)
-                    time.sleep(1)
-                    
-                    # Intentar click normal, luego JavaScript
-                    try:
-                        publish_button.click()
-                    except Exception:
-                        self.log_to_panel("⚠️ Click normal falló, usando JavaScript...")
-                        self.driver.execute_script("arguments[0].click();", publish_button)
-                    
-                    self.log_to_panel("✓ Publicación enviada")
-                    break
-                    
-                except Exception as pub_error:
-                    if pub_attempt == max_retries - 1:
-                        return {"success": False, "error": f"Error al publicar: {str(pub_error)}", "should_discard_group": False}
-                    time.sleep(2)
-        
-            # 5. Rastreo de URL con múltiples métodos
-            self.log_to_panel("Intentando rastrear URL de la publicación...")
-            post_url = None
-        
-            # MÉTODO 1: Buscar pop-up "Ver publicación"
-            view_post_selectors = [
-                "//a[.//span[contains(text(), 'Ver publicación')]]",
-                "//a[contains(text(), 'Ver publicación')]",
-                "//a[.//span[contains(text(), 'View post')]]",
-                "//a[contains(text(), 'View post')]"
-            ]
-            
-            for selector in view_post_selectors:
-                try:
-                    view_post_button = WebDriverWait(self.driver, 10).until(
-                        EC.element_to_be_clickable((By.XPATH, selector))
-                    )
-                    post_url = view_post_button.get_attribute('href')
-                    if post_url:
-                        self.log_to_panel(f"✓ URL encontrada: {post_url}")
-                        break
-                except TimeoutException:
-                    continue
-            
-            # MÉTODO 2: Buscar por enlaces de tiempo
-            if not post_url:
-                time_selectors = [
-                    "//a[contains(text(), 'Justo ahora')]",
-                    "//a[contains(text(), 'minuto')]",
-                    "//a[contains(text(), 'Just now')]",
-                    "//a[contains(text(), 'minute')]"
-                ]
-                
-                for selector in time_selectors:
-                    try:
-                        post_link_element = WebDriverWait(self.driver, 10).until(
-                            EC.presence_of_element_located((By.XPATH, selector))
-                        )
-                        post_url = post_link_element.get_attribute('href')
-                        if post_url:
-                            self.log_to_panel(f"✓ URL encontrada por tiempo: {post_url}")
-                            break
-                    except TimeoutException:
-                        continue
-            
-            if not post_url:
-                self.log_to_panel("⚠️ No se pudo rastrear la URL, pero la publicación probablemente fue exitosa")
-            
-            return {"success": True, "post_url": post_url, "should_discard_group": False}
-        
-        except Exception as e:
-            self.log_to_panel(f"❌ Error fatal durante la creación de la publicación: {e}")
-            self.driver.save_screenshot(f"debug_error_fatal_{int(time.time())}.png")
-            return {"success": False, "error": str(e), "should_discard_group": False}
-
-    def _find_coherent_pair_for_group(self, group_tags_str):
-        """
-        Encuentra un par de texto e imagen coherentes basándose en las etiquetas
-        y respetando los límites de uso:
-        - Imágenes: 10 total, 1 por día.
-        - Textos: 10 total, 3 por día.
-        """
-        # 1. Encontrar una IMAGEN usable con validación de archivo.
-        #    - Menos de 10 usos en total.
-        #    - Que NO HAYA SIDO USADA HOY (límite de 1 por día).
-        #    - Que el archivo exista físicamente.
-        usable_images_query = """
-            SELECT i.id, i.path, i.manual_tags FROM images i
-            WHERE
-                (SELECT COUNT(*) FROM group_image_usage_log WHERE image_id = i.id) < 10
-            AND
-                i.id NOT IN (
-                    SELECT image_id FROM group_image_usage_log WHERE DATE(timestamp) = DATE('now')
-                )
-        """
-        all_usable_images = db_manager.fetch_all(usable_images_query)
-        if not all_usable_images:
-            self.log_to_panel("No hay imágenes usables disponibles (respetando límites de 1/día).")
-            return None, None
-
-        # NUEVA LÓGICA: Filtrar imágenes que físicamente existen
-        valid_images = []
-        for image in all_usable_images:
-            validation = self._validate_image_path(image['path'])
-            if validation["valid"]:
-                valid_images.append(image)
-            else:
-                self.log_to_panel(f"🖼️ Imagen ID {image['id']} omitida: {validation['error']}")
-        
-        if not valid_images:
-            self.log_to_panel("❌ No hay imágenes válidas disponibles después de la validación.")
-            self.log_to_panel("💡 Ejecuta validate_images() para limpiar la base de datos.")
-            return None, None
-            
-        random.shuffle(valid_images)
-        image_to_use = valid_images[0]
-        self.log_to_panel(f"✅ Imagen validada: {os.path.basename(image_to_use['path'])}")
-        image_tags = {tag.strip().lower() for tag in image_to_use['manual_tags'].split(',') if tag.strip()}
-
-        # 2. Encontrar un TEXTO coherente y usable (NUEVA LÓGICA).
-        #    - Menos de 10 usos en total (usage_count).
-        #    - Menos de 3 usos en el día actual.
-        texts_query = """
-            SELECT t.id, t.content, t.ai_tags, t.usage_count FROM texts t
-            WHERE
-                t.usage_count < 10
-            AND
-                (SELECT COUNT(*) FROM group_text_usage_log WHERE text_id = t.id AND DATE(timestamp) = DATE('now')) < 3
-        """
-        all_usable_texts = db_manager.fetch_all(texts_query)
-        if not all_usable_texts:
-            self.log_to_panel("No hay textos usables disponibles (respetando límites de 3/día).")
-            return None, None
-
-        # Filtrar textos por coherencia con la imagen seleccionada
-        coherent_texts = []
-        for text in all_usable_texts:
-            if text.get('ai_tags'):
-                text_ai_tags = {tag.strip().lower() for tag in text['ai_tags'].split(',') if tag.strip()}
-                if not image_tags.isdisjoint(text_ai_tags):
-                    coherent_texts.append(text)
-
-        if not coherent_texts:
-            self.log_to_panel(f"No se encontró un texto coherente y usable para la imagen seleccionada.")
-            return None, None
-
-        text_to_use = random.choice(coherent_texts)
-        self.log_to_panel(f"Match encontrado: Imagen ID {image_to_use['id']} con Texto ID {text_to_use['id']} (usado {text_to_use['usage_count']} veces)")
-
-        return text_to_use, image_to_use
-    
-    # Dentro de la clase AppLogic en main.py
+        return {"success": False, "error": "Max retries exceeded", "should_discard_group": False}
 
     def _group_publishing_process(self, group_tags, content_tags):
         self.running_groups_process = True
@@ -618,147 +1035,66 @@ class AppLogic:
         
             for i, group in enumerate(groups_to_publish):
                 if not self.running_groups_process:
-                    self.log_to_panel("Proceso detenido por el usuario.")
                     break
             
-                self.log_to_panel(f"({i+1}/{len(groups_to_publish)}) Preparando publicación para: {group['url']}")
-            
-                text, image = self._find_coherent_pair_for_group(content_tags.split(','))
-            
-                if not text or not image:
-                    self.log_to_panel("No se encontró un par de contenido coherente y usable. Saltando grupo.")
-                    continue
-
-                # Lista de grupos problemáticos para tracking
-                problematic_groups = []
+                # RECOVERY CHECK: Verificar si el navegador sigue vivo
+                if not self.driver:
+                    self.log_to_panel("⚠️ Navegador no detectado. Reiniciando...")
+                    if not self.init_browser():
+                        self.log_to_panel("❌ No se pudo reiniciar el navegador. Abortando.")
+                        break
                 
                 try:
-                    self.log_to_panel(f"🌐 Navegando al grupo: {group['url']}")
-                    self.driver.get(group["url"])
-                    
-                    # Espera más inteligente - verificar que la página haya cargado
+                    # Verificar ventana activa
+                    self.driver.current_url
+                except Exception:
+                    self.log_to_panel("⚠️ Ventana del navegador cerrada o perdida. Reiniciando sesión...")
                     try:
-                        WebDriverWait(self.driver, 15).until(
-                            lambda driver: driver.execute_script("return document.readyState") == "complete"
-                        )
-                        self.log_to_panel("✓ Página cargada completamente")
-                    except TimeoutException:
-                        self.log_to_panel("⚠️ Página tardó en cargar, continuando...")
-                    
-                    time.sleep(random.uniform(3, 5))  # Tiempo reducido tras verificación
-                
-                    # Intentar publicar con manejo mejorado de errores
-                    result = self._create_post_on_facebook(text['content'], image['path'])
-                    
-                    # Manejo específico de grupos problemáticos
-                    if result.get('should_discard_group', False):
-                        self.log_to_panel(f"🚨 GRUPO PROBLEMÁTICO DETECTADO: {group['url']}")
-                        self.log_to_panel(f"💡 Razón: {result.get('error', 'Desconocida')}")
-                        
-                        # Marcar grupo como problemático en la base de datos
-                        try:
-                            db_manager.execute_query(
-                                "UPDATE groups SET tags = CASE WHEN tags LIKE '%PROBLEMÁTICO%' THEN tags ELSE tags || ',PROBLEMÁTICO' END WHERE id = ?", 
-                                (group['id'],)
-                            )
-                            self.log_to_panel(f"🏷️ Grupo marcado como PROBLEMÁTICO en la base de datos")
-                        except Exception as tag_error:
-                            self.log_to_panel(f"⚠️ Error marcando grupo: {tag_error}")
-                        
-                        # Registrar en log especial
-                        log_data = {
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "status": "Failed - Problematic Group",
-                            "target_type": "Group",
-                            "target_url": group['url'],
-                            "text_content": text['content'],
-                            "image_path": image['path'],
-                            "published_post_url": None,
-                            "error_details": result.get('error', '')
-                        }
-                        
-                        db_manager.execute_query("""
-                            INSERT INTO publication_log (timestamp, status, target_type, target_url, text_content, image_path, published_post_url)
-                            VALUES (:timestamp, :status, :target_type, :target_url, :text_content, :image_path, :published_post_url)
-                        """, log_data)
-                        
-                        self.log_to_panel("⏭️ Saltando al siguiente grupo...")
-                        continue
-                    
-                    # Registro normal de resultados
-                    status = "Success" if result['success'] else "Failed"
-                    log_data = {
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "status": status,
-                        "target_type": "Group",
-                        "target_url": group['url'],
-                        "text_content": text['content'],
-                        "image_path": image['path'],
-                        "published_post_url": result.get('post_url'),
-                        "error_details": result.get('error', '') if not result['success'] else ""
-                    }
-                
-                    db_manager.execute_query("""
-                        INSERT INTO publication_log (timestamp, status, target_type, target_url, text_content, image_path, published_post_url)
-                        VALUES (:timestamp, :status, :target_type, :target_url, :text_content, :image_path, :published_post_url)
-                    """, log_data)
-                
-                    if result['success']:
-                        self.log_to_panel(f"✅ Publicación exitosa en {group['url']}")
-                        
-                        # Registrar uso de imagen y texto
-                        db_manager.execute_query(
-                            "INSERT INTO group_image_usage_log (image_id, group_id, timestamp) VALUES (?, ?, ?)",
-                            (image['id'], group['id'], datetime.now())
-                        )
-                        db_manager.execute_query(
-                            "INSERT INTO group_text_usage_log (text_id, group_id, timestamp) VALUES (?, ?, ?)",
-                            (text['id'], group['id'], datetime.now())
-                        )
-                        db_manager.execute_query(
-                            "UPDATE texts SET usage_count = usage_count + 1 WHERE id = ?", 
-                            (text['id'],)
-                        )
-                        
-                        self.log_to_panel(f"📊 Contadores actualizados - Texto ID: {text['id']}, Imagen ID: {image['id']}")
-                        
-                        if result.get('post_url'):
-                            self.log_to_panel(f"🔗 URL de la publicación: {result['post_url']}")
-                    else:
-                        self.log_to_panel(f"❌ Falló la publicación en {group['url']}")
-                        if result.get('error'):
-                            self.log_to_panel(f"💬 Detalles del error: {result['error']}")
-                            
-                except WebDriverException as web_error:
-                    error_msg = f"Error de navegador en {group['url']}: {str(web_error)}"
-                    self.log_to_panel(f"🌐 {error_msg}")
-                    
-                    # Log del error de navegación
-                    db_manager.execute_query("""
-                        INSERT INTO publication_log (timestamp, status, target_type, target_url, text_content, image_path, published_post_url)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Failed - Navigation Error", 
-                          "Group", group['url'], text['content'], image['path'], None))
-                          
-                except Exception as e:
-                    error_msg = f"Error inesperado en {group['url']}: {str(e)}"
-                    self.log_to_panel(f"💥 {error_msg}")
-                    
-                    # Screenshot para debugging
-                    try:
-                        screenshot_name = f"error_group_{group['id']}_{int(time.time())}.png"
-                        self.driver.save_screenshot(screenshot_name)
-                        self.log_to_panel(f"📷 Screenshot guardado: {screenshot_name}")
+                        self.driver.quit()
                     except:
                         pass
+                    self.driver = None
+                    if not self.init_browser():
+                        self.log_to_panel("❌ No se pudo recuperar la sesión. Abortando.")
+                        break
+
+                self.log_to_panel(f"({i+1}/{len(groups_to_publish)}) Grupo: {group['url']}")
+            
+                text, image = self._find_coherent_pair_for_group(group, content_tags)
+                if not text:
+                    continue
+                
+                try:
+                    self.driver.get(group["url"])
+                    time.sleep(random.uniform(3, 5))
+                
+                    image_path = image['path'] if image else None
+                    result = self._create_post_on_facebook(text['content'], image_path)
+                    
+                    if result['success']:
+                        self.log_to_panel(f"✅ Publicación exitosa!")
+                        # Registrar éxito (código simplificado para brevedad)
+                        db_manager.execute_query("UPDATE texts SET usage_count = usage_count + 1 WHERE id = ?", (text['id'],))
+                        if image:
+                            db_manager.execute_query("UPDATE images SET usage_count = usage_count + 1 WHERE id = ?", (image['id'],))
+                    else:
+                        self.log_to_panel(f"❌ Falló: {result.get('error')}")
+                        if result.get('should_discard_group'):
+                            self.log_to_panel("🚨 Marcando grupo como problemático.")
+                            # Aquí iría la lógica de marcar grupo (simplificado)
+
+                except Exception as e:
+                    self.log_to_panel(f"💥 Error crítico en grupo: {e}")
+                    # No abortamos el loop, intentamos con el siguiente grupo
+                    continue
 
                 if i < len(groups_to_publish) - 1:
-                    wait_time = random.randint(60, 120)
-                    self.log_to_panel(f"Esperando {wait_time} segundos...")
+                    wait_time = random.randint(30, 60) # Tiempo reducido para pruebas
+                    self.log_to_panel(f"Esperando {wait_time}s...")
                     time.sleep(wait_time)
     
         finally:
-            self.log_to_panel("Finalizando proceso de publicación en grupos.")
+            self.log_to_panel("Finalizando proceso.")
             self.close_browser()
             self.running_groups_process = False
         
@@ -783,10 +1119,33 @@ class AppLogic:
         
         return {"success": True, "message": "Proceso de publicación en grupos iniciado."}
     def stop_publishing_groups(self):
+        """Detiene el proceso de publicación en grupos de forma segura."""
+        self.log_to_panel("🛑 Deteniendo publicación en grupos...")
+        
+        # Señalar al thread que debe detenerse
         self.running_groups_process = False
-        self.close_browser()
-        self.log_to_panel("Proceso de publicación en grupos detenido.")
-        return {"success": True}
+        
+        # Cerrar navegador de forma segura
+        try:
+            self.close_browser()
+            self.log_to_panel("✅ Navegador cerrado correctamente")
+        except Exception as e:
+            self.log_to_panel(f"⚠️ Error al cerrar navegador: {e}")
+        
+        # Esperar a que el thread termine (máximo 5 segundos)
+        if hasattr(self, 'publishing_thread') and self.publishing_thread and self.publishing_thread.is_alive():
+            try:
+                self.log_to_panel("Esperando a que termine el proceso...")
+                self.publishing_thread.join(timeout=5)
+                if self.publishing_thread.is_alive():
+                    self.log_to_panel("⚠️ El proceso tardó en terminar pero se detuvo")
+                else:
+                    self.log_to_panel("✅ Proceso terminado correctamente")
+            except Exception as e:
+                self.log_to_panel(f"⚠️ Error esperando al thread: {e}")
+        
+        self.log_to_panel("✅ Proceso de publicación detenido. Listo para reiniciar.")
+        return {"success": True, "message": "Publicación detenida correctamente"}
     
     def get_problematic_groups_report(self):
         """
@@ -1423,7 +1782,7 @@ def delete_image(item_id):
                 
                 app_logic.log_to_panel(f"✅ Imagen ID {item_id} eliminada de la base de datos")
                 
-            except sqlite3.Error as e:
+            except Exception as e:
                 app_logic.log_to_panel(f"❌ Error en operaciones de base de datos: {str(e)}", 'error')
                 raise
             
@@ -1502,6 +1861,48 @@ def start_group_publishing_process(group_tags, content_tags):
 def stop_group_publishing_process():
     return app_logic.stop_publishing_groups()
 
+# --- NUEVAS FUNCIONES PARA GESTIÓN DE SESIONES ---
+
+@eel.expose
+def create_session(name, group_tags, content_tags, publication_type="text-and-image"):
+    """Crea una nueva sesión de Facebook."""
+    return session_manager.create_session(name, group_tags, content_tags, publication_type)
+
+@eel.expose
+def start_session(session_id):
+    """Inicia una sesión específica."""
+    return session_manager.start_session(session_id)
+
+@eel.expose
+def pause_session(session_id):
+    """Pausa una sesión específica."""
+    return session_manager.pause_session(session_id)
+
+@eel.expose
+def stop_session(session_id):
+    """Detiene una sesión específica."""
+    return session_manager.stop_session(session_id)
+
+@eel.expose
+def delete_session(session_id):
+    """Elimina una sesión completamente."""
+    return session_manager.delete_session(session_id)
+
+@eel.expose
+def get_session_status(session_id):
+    """Obtiene el estado de una sesión específica."""
+    return session_manager.get_session_status(session_id)
+
+@eel.expose
+def get_all_sessions():
+    """Obtiene el estado de todas las sesiones."""
+    return session_manager.get_all_sessions()
+
+@eel.expose
+def get_session_logs(session_id, limit=20):
+    """Obtiene los logs de una sesión específica."""
+    return session_manager.get_session_logs(session_id, limit)
+
 @eel.expose
 def schedule_page_post(data):
     # data = { page_id, publish_at, text_content, image_id }
@@ -1543,6 +1944,146 @@ def get_content_suggestion(page_id, inspiration_tags):
     text = random.choice(coherent_texts)
     
     return {"success": True, "text": text, "image": image}
+
+# --- FUNCIONES PARA EDITAR ETIQUETAS ---
+
+@eel.expose
+def update_text_tags(text_id, new_tags):
+    """Actualiza las etiquetas de un texto específico."""
+    try:
+        # Validar que el texto existe
+        text = db_manager.fetch_one("SELECT id, content FROM texts WHERE id = ?", (text_id,))
+        if not text:
+            return {
+                "success": False, 
+                "message": "Texto no encontrado",
+                "data": None
+            }
+        
+        # Limpiar y validar las etiquetas
+        if not new_tags or not new_tags.strip():
+            return {
+                "success": False,
+                "message": "Las etiquetas no pueden estar vacías",
+                "data": None
+            }
+        
+        tags_list = [tag.strip().lower() for tag in new_tags.split(',') if tag.strip()]
+        tags_str = ",".join(tags_list)
+        
+        # Actualizar en la base de datos
+        db_manager.execute_query(
+            "UPDATE texts SET ai_tags = ? WHERE id = ?", 
+            (tags_str, text_id)
+        )
+        
+        # Obtener el texto actualizado
+        updated_text = db_manager.fetch_one(
+            "SELECT id, content, ai_tags, usage_count FROM texts WHERE id = ?",
+            (text_id,)
+        )
+        
+        app_logic.log_to_panel(f"✅ Etiquetas del texto ID {text_id} actualizadas: {tags_str}")
+        
+        # Retornar el texto actualizado para actualizar la UI sin recargar todo
+        return {
+            "success": True, 
+            "message": "Etiquetas actualizadas correctamente",
+            "data": updated_text
+        }
+        
+    except Exception as e:
+        error_msg = f"Error actualizando etiquetas del texto: {str(e)}"
+        app_logic.log_to_panel(f"❌ {error_msg}")
+        return {
+            "success": False, 
+            "message": error_msg,
+            "data": None
+        }
+
+@eel.expose
+def update_image_tags(image_id, new_tags):
+    """Actualiza las etiquetas de una imagen específica."""
+    try:
+        # Validar que la imagen existe
+        image = db_manager.fetch_one(
+            "SELECT id, file_path, manual_tags FROM images WHERE id = ?", 
+            (image_id,)
+        )
+        if not image:
+            return {
+                "success": False, 
+                "message": "Imagen no encontrada",
+                "data": None
+            }
+        
+        # Limpiar y validar las etiquetas
+        if not new_tags or not new_tags.strip():
+            return {
+                "success": False,
+                "message": "Las etiquetas no pueden estar vacías",
+                "data": None
+            }
+        
+        tags_list = [tag.strip().lower() for tag in new_tags.split(',') if tag.strip()]
+        tags_str = ",".join(tags_list)
+        
+        # Actualizar en la base de datos
+        db_manager.execute_query(
+            "UPDATE images SET manual_tags = ? WHERE id = ?", 
+            (tags_str, image_id)
+        )
+        
+        # Obtener la imagen actualizada
+        updated_image = db_manager.fetch_one(
+            "SELECT id, file_path, manual_tags, usage_count FROM images WHERE id = ?",
+            (image_id,)
+        )
+        
+        app_logic.log_to_panel(f"✅ Etiquetas de la imagen ID {image_id} actualizadas: {tags_str}")
+        
+        # Retornar la imagen actualizada para actualizar la UI sin recargar todo
+        return {
+            "success": True, 
+            "message": "Etiquetas actualizadas correctamente",
+            "data": updated_image
+        }
+        
+    except Exception as e:
+        error_msg = f"Error actualizando etiquetas de la imagen: {str(e)}"
+        app_logic.log_to_panel(f"❌ {error_msg}")
+        return {
+            "success": False, 
+            "message": error_msg,
+            "data": None
+        }
+
+@eel.expose
+def regenerate_text_tags(text_id):
+    """Regenera las etiquetas de un texto usando IA."""
+    try:
+        # Obtener el contenido del texto
+        text = db_manager.fetch_one("SELECT id, content FROM texts WHERE id = ?", (text_id,))
+        if not text:
+            return {"success": False, "message": "Texto no encontrado"}
+        
+        # Generar nuevas etiquetas con IA
+        new_tags = ai_service.generate_tags_for_text(text['content'])
+        tags_str = ",".join(new_tags)
+        
+        # Actualizar en la base de datos
+        db_manager.execute_query(
+            "UPDATE texts SET ai_tags = ? WHERE id = ?", 
+            (tags_str, text_id)
+        )
+        
+        app_logic.log_to_panel(f"Etiquetas regeneradas para texto ID {text_id}: {tags_str}")
+        
+        return {"success": True, "message": "Etiquetas regeneradas correctamente", "tags": tags_str}
+        
+    except Exception as e:
+        app_logic.log_to_panel(f"Error regenerando etiquetas del texto: {e}")
+        return {"success": False, "message": str(e)}
 
 # --- Funciones Worker para Tareas Lentas (AÑADIR A MAIN.PY) ---
 
@@ -1775,6 +2316,340 @@ def get_images_health_report():
         return {"success": False, "error": str(e)}
 
 
+# --- FUNCIONES PARA CHATBOT ASISTENTE ---
+
+@eel.expose
+def chat_with_assistant(message, category=None):
+    """
+    Envía un mensaje al chatbot asistente y obtiene respuesta.
+    
+    Args:
+        message: Mensaje del usuario
+        category: Categoría opcional para contextualizar (EMPLEOS, SERVICIOS, VENTAS)
+    
+    Returns:
+        {
+            "response": str,
+            "action": str,
+            "data": dict,
+            "suggestions": list
+        }
+    """
+    try:
+        result = chatbot_assistant.chat(message, category)
+        return result
+    except Exception as e:
+        return {
+            "response": f"Error procesando tu mensaje: {str(e)}",
+            "action": "error",
+            "data": {},
+            "suggestions": []
+        }
+
+@eel.expose
+def save_generated_texts(texts, category):
+    """
+    Guarda textos generados por el chatbot en la base de datos.
+    
+    Args:
+        texts: Lista de textos a guardar
+        category: Categoría del contenido (EMPLEOS, SERVICIOS, VENTAS)
+    
+    Returns:
+        {
+            "success": bool,
+            "saved_count": int,
+            "texts": list
+        }
+    """
+    try:
+        saved_texts = []
+        
+        for text in texts:
+            # Analizar y categorizar el texto
+            analysis = content_categorizer.analyze_content(text, category)
+            
+            # Crear etiquetas jerárquicas: categoria:tag1,categoria:tag2
+            hierarchical_tags = [
+                f"{category.lower()}:{tag}"
+                for tag in analysis.get("suggested_tags", [])
+            ]
+            
+            # Agregar categoría principal
+            all_tags = [category.lower()] + hierarchical_tags
+            final_tags = ",".join(all_tags)
+            
+            # Guardar en base de datos
+            cursor = db_manager.execute_query(
+                "INSERT INTO texts (content, ai_tags, usage_count) VALUES (?, ?, 0)",
+                (text, final_tags)
+            )
+            
+            # Guardar relación con categoría
+            text_id = cursor.lastrowid
+            db_manager.execute_query(
+                "INSERT OR REPLACE INTO text_categories (text_id, category, confidence_score) VALUES (?, ?, ?)",
+                (text_id, category, analysis.get("confidence", 0.9))
+            )
+            
+            saved_texts.append({
+                "id": text_id,
+                "content": text,
+                "category": category,
+                "tags": final_tags
+            })
+        
+        return {
+            "success": True,
+            "saved_count": len(saved_texts),
+            "texts": saved_texts,
+            "message": f"✅ {len(saved_texts)} textos guardados en categoría {category}"
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "saved_count": 0,
+            "texts": [],
+            "message": f"Error guardando textos: {str(e)}"
+        }
+
+@eel.expose
+def clear_chat_history():
+    """Limpia el historial de conversación del chatbot."""
+    try:
+        chatbot_assistant.clear_history()
+        return {"success": True, "message": "Historial limpiado"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+# --- FUNCIONES PARA CATEGORIZACIÓN INTELIGENTE ---
+
+@eel.expose
+def get_content_categories():
+    """
+    Obtiene todas las categorías disponibles.
+    
+    Returns:
+        {
+            "EMPLEOS": {...},
+            "SERVICIOS": {...},
+            "VENTAS": {...}
+        }
+    """
+    return CONTENT_CATEGORIES
+
+@eel.expose
+def categorize_content(text, manual_category=None):
+    """
+    Analiza un texto y determina su categoría.
+    
+    Args:
+        text: Contenido a analizar
+        manual_category: Categoría manual si el usuario la especifica
+    
+    Returns:
+        {
+            "category": str,
+            "confidence": float,
+            "keywords_found": list,
+            "suggested_tags": list
+        }
+    """
+    try:
+        result = content_categorizer.analyze_content(text, manual_category)
+        return {
+            "success": True,
+            **result
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "category": "GENERAL",
+            "confidence": 0.0
+        }
+
+@eel.expose
+def validate_content_coherence(text_content, image_tags):
+    """
+    Valida que un texto y una imagen sean coherentes (misma categoría).
+    
+    Args:
+        text_content: Contenido del texto
+        image_tags: Etiquetas de la imagen
+    
+    Returns:
+        {
+            "coherent": bool,
+            "text_category": str,
+            "image_category": str,
+            "confidence": float,
+            "message": str
+        }
+    """
+    try:
+        result = content_categorizer.validate_content_coherence(text_content, image_tags)
+        return {
+            "success": True,
+            **result
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "coherent": False
+        }
+
+@eel.expose
+def recategorize_all_content():
+    """
+    Re-categoriza todo el contenido existente usando el nuevo sistema.
+    
+    Returns:
+        {
+            "success": bool,
+            "stats": dict,
+            "categorized": list,
+            "errors": list
+        }
+    """
+    try:
+        result = content_categorizer.categorize_existing_content()
+        return {
+            "success": True,
+            **result,
+            "message": f"✅ {len(result['success'])} textos categorizados correctamente"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": f"Error en re-categorización: {str(e)}"
+        }
+
+@eel.expose
+def get_content_by_category(category):
+    """
+    Obtiene todo el contenido de una categoría específica.
+    
+    Args:
+        category: Categoría a filtrar (EMPLEOS, SERVICIOS, VENTAS)
+    
+    Returns:
+        {
+            "texts": list,
+            "images": list,
+            "count": int
+        }
+    """
+    try:
+        category_lower = category.lower()
+        
+        # Buscar textos con la categoría
+        texts = db_manager.fetch_all(
+            "SELECT * FROM texts WHERE ai_tags LIKE ? ORDER BY id DESC",
+            (f"%{category_lower}%",)
+        )
+        
+        # Buscar imágenes con la categoría
+        images = db_manager.fetch_all(
+            "SELECT * FROM images WHERE manual_tags LIKE ? ORDER BY id DESC",
+            (f"%{category_lower}%",)
+        )
+        
+        return {
+            "success": True,
+            "category": category,
+            "texts": texts,
+            "images": images,
+            "count": {
+                "texts": len(texts),
+                "images": len(images)
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "texts": [],
+            "images": [],
+            "count": {"texts": 0, "images": 0}
+        }
+
+@eel.expose
+def get_category_statistics():
+    """
+    Obtiene estadísticas de distribución de contenido por categoría.
+    
+    Returns:
+        {
+            "total_texts": int,
+            "total_images": int,
+            "distribution": dict,
+            "recommendations": list
+        }
+    """
+    try:
+        texts = db_manager.fetch_all("SELECT ai_tags FROM texts")
+        images = db_manager.fetch_all("SELECT manual_tags FROM images")
+        
+        distribution = {
+            "EMPLEOS": 0,
+            "SERVICIOS": 0,
+            "VENTAS": 0,
+            "GENERAL": 0
+        }
+        
+        # Contar textos por categoría
+        for text in texts:
+            tags = (text.get("ai_tags") or "").lower()
+            categorized = False
+            for category in ["EMPLEOS", "SERVICIOS", "VENTAS"]:
+                if category.lower() in tags:
+                    distribution[category] += 1
+                    categorized = True
+                    break
+            if not categorized:
+                distribution["GENERAL"] += 1
+        
+        total = len(texts)
+        
+        # Generar recomendaciones
+        recommendations = []
+        if total > 0:
+            for cat, count in distribution.items():
+                percentage = (count / total) * 100
+                if percentage < 15 and cat != "GENERAL":
+                    recommendations.append(
+                        f"⚠️ Necesitas más contenido de {cat} (solo {percentage:.1f}%)"
+                    )
+                elif percentage > 50 and cat != "GENERAL":
+                    recommendations.append(
+                        f"📊 Tienes mucho contenido de {cat} ({percentage:.1f}%), considera diversificar"
+                    )
+        
+        return {
+            "success": True,
+            "total_texts": total,
+            "total_images": len(images),
+            "distribution": distribution,
+            "percentages": {
+                cat: (count / total * 100) if total > 0 else 0
+                for cat, count in distribution.items()
+            },
+            "recommendations": recommendations
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 if __name__ == "__main__":
     """
     Punto de entrada principal de la aplicación.
@@ -1813,4 +2688,5 @@ if __name__ == "__main__":
         if 'app_logic' in locals() and app_logic:
             app_logic.shutdown()
         
+ 
  

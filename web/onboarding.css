@@ -1,0 +1,382 @@
+/* ============================================
+   SISTEMA DE ONBOARDING - TOUR GUIADO
+   Tutorial interactivo para nuevos usuarios
+   ============================================ */
+
+/* Overlay oscuro de fondo */
+.onboarding-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9998;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.onboarding-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* Tooltip de ayuda */
+.onboarding-tooltip {
+    position: fixed;
+    background: white;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    max-width: 400px;
+    z-index: 9999;
+    opacity: 0;
+    transform: scale(0.9);
+    pointer-events: none;
+    transition: all 0.3s ease;
+}
+
+.onboarding-tooltip.active {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: all;
+}
+
+.onboarding-tooltip-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.onboarding-tooltip-icon {
+    font-size: 32px;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.onboarding-tooltip-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.onboarding-tooltip-content {
+    color: #4a5568;
+    font-size: 16px;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.onboarding-tooltip-content strong {
+    color: #667eea;
+    font-weight: 600;
+}
+
+.onboarding-tooltip-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.onboarding-progress {
+    font-size: 14px;
+    color: #718096;
+    font-weight: 500;
+}
+
+.onboarding-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.onboarding-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.onboarding-btn-skip {
+    background: #e2e8f0;
+    color: #4a5568;
+}
+
+.onboarding-btn-skip:hover {
+    background: #cbd5e0;
+}
+
+.onboarding-btn-prev {
+    background: #f7fafc;
+    color: #4a5568;
+    border: 2px solid #e2e8f0;
+}
+
+.onboarding-btn-prev:hover {
+    background: #edf2f7;
+}
+
+.onboarding-btn-next {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 10px 24px;
+}
+
+.onboarding-btn-next:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* Highlight del elemento objetivo */
+.onboarding-highlight {
+    position: relative;
+    z-index: 9997 !important;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.5),
+                0 0 0 99999px rgba(0, 0, 0, 0.7) !important;
+    border-radius: 8px;
+    animation: pulse-highlight 2s infinite;
+}
+
+@keyframes pulse-highlight {
+    0%, 100% {
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.5),
+                    0 0 0 99999px rgba(0, 0, 0, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(102, 126, 234, 0.8),
+                    0 0 0 99999px rgba(0, 0, 0, 0.7);
+    }
+}
+
+/* Botón para iniciar tour */
+.start-tour-btn {
+    position: fixed;
+    bottom: 120px;
+    right: 30px;
+    background: white;
+    color: #667eea;
+    border: 2px solid #667eea;
+    padding: 12px 20px;
+    border-radius: 25px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    z-index: 998;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.start-tour-btn:hover {
+    background: #667eea;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+}
+
+.start-tour-btn .icon {
+    font-size: 18px;
+}
+
+/* Panel de bienvenida inicial */
+.welcome-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
+
+.welcome-screen.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.welcome-content {
+    background: white;
+    padding: 60px 40px;
+    border-radius: 24px;
+    max-width: 600px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.5s ease;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.welcome-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+    animation: wave 1s ease-in-out infinite;
+}
+
+@keyframes wave {
+    0%, 100% {
+        transform: rotate(0deg);
+    }
+    25% {
+        transform: rotate(20deg);
+    }
+    75% {
+        transform: rotate(-20deg);
+    }
+}
+
+.welcome-title {
+    font-size: 36px;
+    font-weight: 700;
+    color: #2d3748;
+    margin-bottom: 16px;
+}
+
+.welcome-subtitle {
+    font-size: 18px;
+    color: #4a5568;
+    margin-bottom: 32px;
+    line-height: 1.6;
+}
+
+.welcome-features {
+    text-align: left;
+    margin: 32px 0;
+}
+
+.welcome-feature {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.welcome-feature-icon {
+    font-size: 28px;
+    min-width: 40px;
+}
+
+.welcome-feature-text {
+    font-size: 16px;
+    color: #4a5568;
+}
+
+.welcome-feature-text strong {
+    color: #2d3748;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.welcome-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 32px;
+}
+
+.welcome-btn {
+    padding: 14px 32px;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.welcome-btn-tour {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.welcome-btn-tour:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.welcome-btn-skip {
+    background: #f7fafc;
+    color: #4a5568;
+    border: 2px solid #e2e8f0;
+}
+
+.welcome-btn-skip:hover {
+    background: #edf2f7;
+}
+
+/* Arrow pointer para destacar elementos */
+.onboarding-arrow {
+    position: fixed;
+    font-size: 48px;
+    color: #667eea;
+    animation: point 1s ease-in-out infinite;
+    z-index: 10000;
+    pointer-events: none;
+}
+
+@keyframes point {
+    0%, 100% {
+        transform: translate(0, 0);
+    }
+    50% {
+        transform: translate(-10px, -10px);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .welcome-content {
+        padding: 40px 24px;
+        max-width: 90%;
+    }
+
+    .welcome-title {
+        font-size: 28px;
+    }
+
+    .welcome-subtitle {
+        font-size: 16px;
+    }
+
+    .onboarding-tooltip {
+        max-width: calc(100% - 40px);
+        left: 20px !important;
+        right: 20px !important;
+    }
+
+    .start-tour-btn {
+        bottom: 100px;
+        right: 20px;
+        font-size: 12px;
+        padding: 10px 16px;
+    }
+}

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +8,10 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="chatbot.css">
+    <link rel="stylesheet" href="onboarding.css">
 </head>
+
 <body>
     <div class="app-container">
         <header class="app-header">
@@ -31,7 +35,7 @@
                 </div>
             </div>
         </header>
-        
+
         <aside class="sidebar" id="sidebar">
             <div class="brand">
                 <div class="brand-logo">
@@ -39,7 +43,7 @@
                 </div>
                 <div class="brand-text">Swiftly</div>
             </div>
-            
+
             <div class="nav-section">
                 <div class="nav-title">Principal</div>
                 <a href="#" class="nav-link active" data-tab="dashboard">
@@ -47,7 +51,7 @@
                     <span>Panel de Control</span>
                 </a>
             </div>
-            
+
             <div class="nav-section">
                 <div class="nav-title">Contenido</div>
                 <a href="#" class="nav-link" data-tab="content">
@@ -59,7 +63,7 @@
                     <span>Destinos</span>
                 </a>
             </div>
-            
+
             <div class="nav-section">
                 <div class="nav-title">Automatización</div>
                 <a href="#" class="nav-link" data-tab="scheduler">
@@ -72,7 +76,7 @@
                 </a>
             </div>
         </aside>
-        
+
         <main class="main-content">
             <!-- DASHBOARD -->
             <div id="dashboard" class="tab-content active">
@@ -85,12 +89,31 @@
                         <span id="status-text">Conectando...</span>
                     </div>
                 </div>
-                
+
                 <div class="grid-container">
+                    <!-- NUEVA SECCIÓN: Múltiples Sesiones -->
+                    <div class="card sessions-card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <i class="fas fa-layer-group"></i> Múltiples Sesiones de Facebook
+                            </h2>
+                            <button class="btn btn-primary" id="create-session-btn">
+                                <i class="fas fa-plus"></i> Nueva Sesión
+                            </button>
+                        </div>
+                        <div class="sessions-container" id="sessions-container">
+                            <div class="sessions-loading">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>Cargando sesiones...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SESIÓN INDIVIDUAL (Legacy) -->
                     <div class="card">
                         <div class="card-header">
                             <h2 class="card-title">
-                                <i class="fas fa-users"></i> Publicación en Grupos
+                                <i class="fas fa-users"></i> Publicación Individual (Legacy)
                             </h2>
                             <button class="btn btn-success" id="start-group-publishing">
                                 <i class="fas fa-play"></i> Iniciar
@@ -101,14 +124,53 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Etiquetas de Grupos (separadas por comas)</label>
-                            <input type="text" id="group-tags-input" class="form-control" placeholder="autos,ofertas,madrid">
+                            <input type="text" id="group-tags-input" class="form-control"
+                                placeholder="autos,ofertas,madrid">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Etiquetas de Contenido (separadas por comas)</label>
-                            <input type="text" id="content-tags-input" class="form-control" placeholder="coche,venta,ofertas">
+                            <input type="text" id="content-tags-input" class="form-control"
+                                placeholder="coche,venta,ofertas">
+                        </div>
+
+                        <!-- NUEVA SECCIÓN: Opciones de Publicación -->
+                        <div class="form-group">
+                            <label class="form-label">Tipo de Publicación</label>
+                            <div class="publication-options">
+                                <label class="radio-option">
+                                    <input type="radio" name="publication-type" value="text-only" checked>
+                                    <span class="radio-custom"></span>
+                                    <span class="radio-label">
+                                        <i class="fas fa-font"></i>
+                                        Solo Texto
+                                    </span>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="publication-type" value="text-and-image">
+                                    <span class="radio-custom"></span>
+                                    <span class="radio-label">
+                                        <i class="fas fa-image"></i>
+                                        Texto + Imagen
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Vista previa de la publicación -->
+                        <div class="form-group" id="publication-preview-section" style="display: none;">
+                            <label class="form-label">Vista Previa de la Publicación</label>
+                            <div class="publication-preview">
+                                <div class="preview-content">
+                                    <div class="preview-text" id="preview-text">Selecciona contenido para ver la vista
+                                        previa...</div>
+                                    <div class="preview-image" id="preview-image" style="display: none;">
+                                        <img src="" alt="Vista previa" id="preview-image-src">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    
+
                     <div class="card">
                         <div class="card-header">
                             <h2 class="card-title">
@@ -136,7 +198,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="card">
                     <div class="card-header">
                         <h2 class="card-title">
@@ -151,7 +213,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- CONTENT MANAGEMENT -->
             <div id="content" class="tab-content">
                 <div class="page-header">
@@ -162,7 +224,7 @@
                         <i class="fas fa-sync"></i> Actualizar
                     </button>
                 </div>
-                
+
                 <div class="grid-container">
                     <!-- GESTIÓN DE TEXTOS -->
                     <div class="card">
@@ -171,22 +233,24 @@
                                 <i class="fas fa-pen-fancy"></i> Textos
                             </h2>
                         </div>
-                        
+
                         <!-- Añadir texto manual -->
                         <div class="form-group">
                             <label class="form-label">Añadir Texto Manual</label>
-                            <textarea id="manual-text-input" class="form-control" placeholder="Escribe aquí tu texto..."></textarea>
+                            <textarea id="manual-text-input" class="form-control"
+                                placeholder="Escribe aquí tu texto..."></textarea>
                         </div>
                         <button class="btn btn-primary" id="add-manual-text">
                             <i class="fas fa-plus"></i> Añadir Texto
                         </button>
-                        
+
                         <hr style="border-color: var(--border-color); margin: 20px 0;">
-                        
+
                         <!-- Generar textos con IA -->
                         <div class="form-group">
                             <label class="form-label">Generar Textos con IA</label>
-                            <input type="text" id="ai-topic-input" class="form-control" placeholder="Tema para generar textos (ej: ofertas de coches)">
+                            <input type="text" id="ai-topic-input" class="form-control"
+                                placeholder="Tema para generar textos (ej: ofertas de coches)">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Cantidad</label>
@@ -206,18 +270,23 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Etiquetas para las imágenes</label>
-                            <input type="text" id="image-tags-input" class="form-control" placeholder="autos,coches,venta">
+                            <input type="text" id="image-tags-input" class="form-control"
+                                placeholder="autos,coches,venta">
                         </div>
                         <button class="btn btn-primary" id="add-images">
                             <i class="fas fa-plus"></i> Seleccionar Imágenes
                         </button>
                         <!-- Indicador de progreso de subida de imágenes -->
-                        <div id="image-upload-progress" class="upload-progress" style="display: none; margin-top: 12px;">
-                            <div class="progress-bar" style="width: 100%; height: 8px; background: var(--border-color); border-radius: 6px; overflow: hidden;">
+                        <div id="image-upload-progress" class="upload-progress"
+                            style="display: none; margin-top: 12px;">
+                            <div class="progress-bar"
+                                style="width: 100%; height: 8px; background: var(--border-color); border-radius: 6px; overflow: hidden;">
                                 <div class="progress" style="width: 0%; height: 100%; background: var(--primary-color);
                                     transition: width 0.25s ease;"></div>
                             </div>
-                            <div class="progress-text" style="font-size: 12px; color: var(--text-muted); margin-top: 6px; text-align: left;">Preparando subida...</div>
+                            <div class="progress-text"
+                                style="font-size: 12px; color: var(--text-muted); margin-top: 6px; text-align: left;">
+                                Preparando subida...</div>
                         </div>
                     </div>
                 </div>
@@ -251,16 +320,44 @@
                         </table>
                     </div>
                 </div>
-                
-                <!-- TABLA DE IMÁGENES -->
+
+                <!-- GALERÍA DE IMÁGENES -->
                 <div class="card">
                     <div class="card-header">
                         <h2 class="card-title">
-                            <i class="fas fa-images"></i> Imágenes Existentes
+                            <i class="fas fa-images"></i> Galería de Imágenes
                         </h2>
                         <div class="tag" id="images-count">0 imágenes</div>
                     </div>
-                    <div class="table-container">
+
+                    <!-- Filtros de la galería -->
+                    <div class="gallery-filters">
+                        <div class="filter-group">
+                            <label class="form-label">Filtrar por etiquetas:</label>
+                            <input type="text" id="gallery-filter-tags" class="form-control"
+                                placeholder="Escribe etiquetas para filtrar...">
+                        </div>
+                        <div class="filter-group">
+                            <label class="form-label">Ordenar por:</label>
+                            <select id="gallery-sort" class="form-control">
+                                <option value="newest">Más recientes</option>
+                                <option value="oldest">Más antiguas</option>
+                                <option value="usage">Más usadas</option>
+                                <option value="name">Nombre</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Vista de galería -->
+                    <div class="image-gallery" id="image-gallery">
+                        <div class="gallery-loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <p>Cargando galería de imágenes...</p>
+                        </div>
+                    </div>
+
+                    <!-- Vista de tabla (alternativa) -->
+                    <div class="table-container" id="images-table-container" style="display: none;">
                         <table class="data-table">
                             <thead>
                                 <tr>
@@ -274,16 +371,26 @@
                             </thead>
                             <tbody id="images-table-body">
                                 <tr>
-                                    <td colspan="6" style="text-align: center; color: var(--text-muted);"> <!-- <-- Colspan actualizado a 6 -->
-                                    Cargando imágenes...
+                                    <td colspan="6" style="text-align: center; color: var(--text-muted);">
+                                        Cargando imágenes...
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- Controles de vista -->
+                    <div class="gallery-controls">
+                        <button class="btn btn-sm btn-secondary" id="toggle-gallery-view">
+                            <i class="fas fa-th"></i> Vista Galería
+                        </button>
+                        <button class="btn btn-sm btn-secondary" id="toggle-table-view">
+                            <i class="fas fa-table"></i> Vista Tabla
+                        </button>
+                    </div>
                 </div>
             </div>
-            
+
             <!-- DESTINATIONS -->
             <div id="destinations" class="tab-content">
                 <div class="page-header">
@@ -294,7 +401,7 @@
                         <i class="fas fa-sync"></i> Actualizar
                     </button>
                 </div>
-                
+
                 <div class="grid-container">
                     <!-- AÑADIR GRUPO INDIVIDUAL -->
                     <div class="card">
@@ -305,17 +412,19 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">URL del Grupo</label>
-                            <input type="text" id="group-url-input" class="form-control" placeholder="https://facebook.com/groups/...">
+                            <input type="text" id="group-url-input" class="form-control"
+                                placeholder="https://facebook.com/groups/...">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Etiquetas</label>
-                            <input type="text" id="group-tags-single-input" class="form-control" placeholder="autos,coches,madrid">
+                            <input type="text" id="group-tags-single-input" class="form-control"
+                                placeholder="autos,coches,madrid">
                         </div>
                         <button class="btn btn-primary" id="add-single-group">
                             <i class="fas fa-plus"></i> Añadir Grupo
                         </button>
                     </div>
-                    
+
                     <!-- IMPORTACIÓN MASIVA -->
                     <div class="card">
                         <div class="card-header">
@@ -325,7 +434,8 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">URLs de Grupos (una por línea)</label>
-                            <textarea id="bulk-groups-input" class="form-control" rows="6" placeholder="https://facebook.com/groups/grupo1&#10;https://facebook.com/groups/grupo2&#10;https://facebook.com/groups/grupo3"></textarea>
+                            <textarea id="bulk-groups-input" class="form-control" rows="6"
+                                placeholder="https://facebook.com/groups/grupo1&#10;https://facebook.com/groups/grupo2&#10;https://facebook.com/groups/grupo3"></textarea>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Etiquetas para todos los grupos</label>
@@ -335,7 +445,7 @@
                             <i class="fas fa-upload"></i> Importar Grupos
                         </button>
                     </div>
-                    
+
                     <!-- AÑADIR PÁGINA -->
                     <div class="card">
                         <div class="card-header">
@@ -349,14 +459,15 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">URL de la Página</label>
-                            <input type="text" id="page-url-input" class="form-control" placeholder="https://facebook.com/MiConcesionario">
+                            <input type="text" id="page-url-input" class="form-control"
+                                placeholder="https://facebook.com/MiConcesionario">
                         </div>
                         <button class="btn btn-primary" id="add-page">
                             <i class="fas fa-plus"></i> Añadir Página
                         </button>
                     </div>
                 </div>
-                
+
                 <!-- TABLA DE GRUPOS -->
                 <div class="card">
                     <div class="card-header">
@@ -385,7 +496,7 @@
                         </table>
                     </div>
                 </div>
-                
+
                 <!-- TABLA DE PÁGINAS -->
                 <div class="card">
                     <div class="card-header">
@@ -415,7 +526,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- SCHEDULER -->
             <div id="scheduler" class="tab-content">
                 <div class="page-header">
@@ -426,7 +537,7 @@
                         <i class="fas fa-sync"></i> Actualizar
                     </button>
                 </div>
-                
+
                 <!-- CREAR NUEVA PUBLICACIÓN PROGRAMADA -->
                 <div class="card">
                     <div class="card-header">
@@ -448,7 +559,8 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Contenido del Texto</label>
-                        <textarea id="schedule-text-content" class="form-control" placeholder="Escribe el contenido de la publicación..."></textarea>
+                        <textarea id="schedule-text-content" class="form-control"
+                            placeholder="Escribe el contenido de la publicación..."></textarea>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Imagen (opcional)</label>
@@ -456,7 +568,7 @@
                             <option value="">Sin imagen</option>
                         </select>
                     </div>
-                    
+
                     <button class="btn btn-success" id="get-content-suggestion">
                         <i class="fas fa-lightbulb"></i> Sugerir Contenido
                     </button>
@@ -464,7 +576,7 @@
                         <i class="fas fa-calendar-plus"></i> Programar Publicación
                     </button>
                 </div>
-                
+
                 <!-- TABLA DE PUBLICACIONES PROGRAMADAS -->
                 <div class="card">
                     <div class="card-header">
@@ -497,7 +609,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- HISTORY -->
             <div id="history" class="tab-content">
                 <div class="page-header">
@@ -508,7 +620,7 @@
                         <i class="fas fa-download"></i> Exportar
                     </button>
                 </div>
-                
+
                 <div class="card">
                     <div class="card-header">
                         <h2 class="card-title">
@@ -530,8 +642,8 @@
                                 <tr>
                                     <td colspan="5" style="text-align: center; color: var(--text-muted);">
                                         Cargando historial...
-                        </td>
-                    </tr>
+                                    </td>
+                                </tr>
                                 <tr>
                                     <td>12/08/2025 09:45</td>
                                     <td>Publicación en grupo</td>
@@ -582,7 +694,7 @@
             <p>Procesando...</p>
         </div>
     </div>
-        <!-- MODAL GENÉRICO -->
+    <!-- MODAL GENÉRICO -->
     <div id="generic-modal" class="modal">
         <div class="modal-content">
             <span class="modal-close-btn">&times;</span>
@@ -592,7 +704,61 @@
         </div>
     </div>
 
+    <!-- Modal para crear sesión -->
+    <div id="create-session-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close-btn" onclick="UIManager.closeCreateSessionModal()">&times;</span>
+            <h2>Crear Nueva Sesión</h2>
+            <form id="create-session-form">
+                <div class="form-group">
+                    <label class="form-label">Nombre de la Sesión</label>
+                    <input type="text" id="session-name" class="form-control" placeholder="Ej: Sesión Empleos Madrid"
+                        required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Etiquetas de Grupos (separadas por comas)</label>
+                    <input type="text" id="session-group-tags" class="form-control" placeholder="empleo,trabajo,ofertas"
+                        required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Etiquetas de Contenido (separadas por comas)</label>
+                    <input type="text" id="session-content-tags" class="form-control" placeholder="empleo,trabajo,cv"
+                        required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tipo de Publicación</label>
+                    <div class="publication-options">
+                        <label class="radio-option">
+                            <input type="radio" name="session-publication-type" value="text-only">
+                            <span class="radio-custom"></span>
+                            <span class="radio-label">
+                                <i class="fas fa-font"></i>
+                                Solo Texto
+                            </span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="session-publication-type" value="text-and-image" checked>
+                            <span class="radio-custom"></span>
+                            <span class="radio-label">
+                                <i class="fas fa-image"></i>
+                                Texto + Imagen
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary"
+                        onclick="UIManager.closeCreateSessionModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Crear Sesión</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script type="text/javascript" src="/eel.js"></script>
     <script src="main.js"></script>
+    <script src="chatbot.js"></script>
+    <script src="onboarding.js"></script>
 </body>
+
 </html>

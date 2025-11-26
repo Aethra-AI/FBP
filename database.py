@@ -121,7 +121,8 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS images (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 path TEXT NOT NULL UNIQUE,
-                manual_tags TEXT
+                manual_tags TEXT,
+                usage_count INTEGER DEFAULT 0
             );
         """)
 
@@ -210,6 +211,13 @@ class DatabaseManager:
             print("Realizando migración: Añadiendo 'usage_count' a la tabla 'texts'...") # <-- LÍNEA MODIFICADA
             cursor.execute("ALTER TABLE texts ADD COLUMN usage_count INTEGER DEFAULT 0")
 
+        # --- MIGRACIÓN: Añadir columna usage_count a images si no existe ---
+        try:
+            cursor.execute("SELECT usage_count FROM images LIMIT 1")
+        except sqlite3.OperationalError:
+            print("Realizando migración: Añadiendo 'usage_count' a la tabla 'images'...")
+            cursor.execute("ALTER TABLE images ADD COLUMN usage_count INTEGER DEFAULT 0")
+
         # --- MIGRACIÓN: Añadir columna error_details a publication_log si no existe ---
         try:
             # Intenta seleccionar la columna para ver si existe.
@@ -218,6 +226,78 @@ class DatabaseManager:
             # Si no existe, la añade.
             print("Realizando migración: Añadiendo 'error_details' a la tabla 'publication_log'...")
             cursor.execute("ALTER TABLE publication_log ADD COLUMN error_details TEXT")
+
+        # --- NUEVAS TABLAS PARA SESIONES ---
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                chrome_profile TEXT NOT NULL,
+                group_tags TEXT,
+                content_tags TEXT,
+                publication_type TEXT DEFAULT 'text-and-image',
+                status TEXT DEFAULT 'inactive',
+                current_group_index INTEGER DEFAULT 0,
+                total_groups INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_activity DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS session_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER,
+                message TEXT,
+                message_type TEXT DEFAULT 'info',
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES sessions (id)
+            );
+        """)
+
+        # --- TABLAS PARA SISTEMA DE CHATBOT ---
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_conversations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_message TEXT NOT NULL,
+                bot_response TEXT NOT NULL,
+                action_taken TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                context JSON
+            );
+        """)
+
+        # --- TABLAS PARA CATEGORIZACIÓN INTELIGENTE ---
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS content_categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                description TEXT,
+                keywords TEXT,
+                color TEXT,
+                icon TEXT
+            );
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS text_categories (
+                text_id INTEGER,
+                category TEXT NOT NULL,
+                confidence_score FLOAT DEFAULT 0.0,
+                PRIMARY KEY (text_id, category),
+                FOREIGN KEY (text_id) REFERENCES texts(id) ON DELETE CASCADE
+            );
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS image_categories (
+                image_id INTEGER,
+                category TEXT NOT NULL,
+                confidence_score FLOAT DEFAULT 0.0,
+                PRIMARY KEY (image_id, category),
+                FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+            );
+        """)
 
         self.conn.commit()
         
@@ -239,12 +319,16 @@ class DatabaseManager:
             ORDER BY sp.publish_at ASC
         """).fetchall()]
 
+        # Obtener sesiones
+        sessions = [dict(row) for row in cursor.execute("SELECT * FROM sessions ORDER BY id DESC").fetchall()]
+
         return {
             "texts": texts,
             "images": images,
             "groups": groups,
             "pages": pages,
-            "scheduled_posts": scheduled_posts
+            "scheduled_posts": scheduled_posts,
+            "sessions": sessions
         }
 
     # --- MÉTODOS PARA ELIMINAR DATOS ---
@@ -257,6 +341,79 @@ class DatabaseManager:
         except Exception as e:
             return {"success": False, "message": str(e)}
 
+    # --- MÉTODOS PARA GESTIÓN DE SESIONES ---
+    
+    def create_session(self, name, chrome_profile, group_tags="", content_tags="", publication_type="text-and-image"):
+        """Crea una nueva sesión en la base de datos."""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                INSERT INTO sessions (name, chrome_profile, group_tags, content_tags, publication_type)
+                VALUES (?, ?, ?, ?, ?)
+            """, (name, chrome_profile, group_tags, content_tags, publication_type))
+            self.conn.commit()
+            return {"success": True, "id": cursor.lastrowid}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+    
+    def update_session_status(self, session_id, status, current_group_index=0, total_groups=0):
+        """Actualiza el estado de una sesión."""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                UPDATE sessions 
+                SET status = ?, current_group_index = ?, total_groups = ?, last_activity = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (status, current_group_index, total_groups, session_id))
+            self.conn.commit()
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+    
+    def get_session(self, session_id):
+        """Obtiene una sesión específica."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM sessions WHERE id = ?", (session_id,))
+        result = cursor.fetchone()
+        return dict(result) if result else None
+    
+    def get_session_logs(self, session_id, limit=50):
+        """Obtiene los logs de una sesión específica."""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT * FROM session_logs 
+            WHERE session_id = ? 
+            ORDER BY timestamp DESC 
+            LIMIT ?
+        """, (session_id, limit))
+        return [dict(row) for row in cursor.fetchall()]
+    
+    def log_session_message(self, session_id, message, message_type="info"):
+        """Registra un mensaje en el log de una sesión."""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                INSERT INTO session_logs (session_id, message, message_type)
+                VALUES (?, ?, ?)
+            """, (session_id, message, message_type))
+            self.conn.commit()
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+    
+    def delete_session(self, session_id):
+        """Elimina una sesión y todos sus logs."""
+        try:
+            cursor = self.conn.cursor()
+            # Eliminar logs primero
+            cursor.execute("DELETE FROM session_logs WHERE session_id = ?", (session_id,))
+            # Eliminar sesión
+            cursor.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+            self.conn.commit()
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+    
     # --- Métodos específicos para la lógica de la aplicación ---
     
     # ... (Se añadirán más métodos según los necesite AppLogic) ...
